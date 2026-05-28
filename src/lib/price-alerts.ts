@@ -12,6 +12,7 @@ export interface PriceAlert {
   createdAt: number;
   triggeredAt?: number;
   notificationSent: boolean;
+  triggeredCount: number;
 }
 
 export class PriceAlertStorage {
@@ -26,6 +27,7 @@ export class PriceAlertStorage {
       id,
       createdAt: Date.now(),
       notificationSent: false,
+      triggeredCount: 0,
     };
 
     const alerts = this.getAllAlerts();
@@ -84,6 +86,7 @@ export class PriceAlertStorage {
           status: 'triggered',
           triggeredAt: Date.now(),
           notificationSent: true,
+          triggeredCount: (alert.triggeredCount ?? 0) + 1,
         });
         triggered.push(alert);
       }
