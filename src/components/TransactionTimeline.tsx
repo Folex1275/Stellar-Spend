@@ -8,16 +8,18 @@ export interface TimelineStage {
   id: OfframpStep;
   label: string;
   description: string;
+  /** Chain or system this stage runs on */
+  chain?: string;
   estimatedSeconds: number;
 }
 
 const DEFAULT_STAGES: TimelineStage[] = [
-  { id: 'initiating',          label: 'Initiating',            description: 'Preparing transaction details',          estimatedSeconds: 5  },
-  { id: 'awaiting-signature',  label: 'Awaiting Signature',    description: 'Approve in your wallet',                 estimatedSeconds: 30 },
-  { id: 'submitting',          label: 'Submitting',            description: 'Broadcasting to Stellar network',        estimatedSeconds: 10 },
-  { id: 'processing',          label: 'Bridge Transfer',       description: 'Allbridge processing on Base chain',     estimatedSeconds: 120 },
-  { id: 'settling',            label: 'Fiat Payout',           description: 'Paycrest settling to bank account',      estimatedSeconds: 60 },
-  { id: 'success',             label: 'Complete',              description: 'Funds sent to your bank',                estimatedSeconds: 0  },
+  { id: 'initiating',         label: 'Initiating',         description: 'Preparing transaction details',         chain: 'App',      estimatedSeconds: 5   },
+  { id: 'awaiting-signature', label: 'Awaiting Signature', description: 'Approve in your Stellar wallet',        chain: 'Stellar',  estimatedSeconds: 30  },
+  { id: 'submitting',         label: 'Stellar Submit',     description: 'Broadcasting to Stellar network',       chain: 'Stellar',  estimatedSeconds: 10  },
+  { id: 'processing',         label: 'Bridge Transfer',    description: 'Allbridge bridging USDC to Base chain', chain: 'Allbridge',estimatedSeconds: 120 },
+  { id: 'settling',           label: 'Fiat Payout',        description: 'Paycrest settling to bank account',     chain: 'Paycrest', estimatedSeconds: 60  },
+  { id: 'success',            label: 'Complete',           description: 'Funds sent to your bank',               chain: 'Bank',     estimatedSeconds: 0   },
 ];
 
 const ACTIVE_STEPS: OfframpStep[] = [
@@ -28,7 +30,6 @@ interface TransactionTimelineProps {
   step: OfframpStep;
   errorMessage?: string;
   stages?: TimelineStage[];
-  /** Poll interval in ms for simulated real-time updates (default 1000) */
   pollInterval?: number;
 }
 
@@ -75,6 +76,8 @@ export function TransactionTimeline({
   const isTerminal = isError || isSuccess;
 
   const activeIdx = ACTIVE_STEPS.indexOf(step);
+  // Progress percentage (0–100)
+  const progressPct = isError ? 0 : isSuccess ? 100 : Math.round((activeIdx / (ACTIVE_STEPS.length - 1)) * 100);
 
   return (
     <div
@@ -84,7 +87,7 @@ export function TransactionTimeline({
       className="w-full space-y-1"
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-2">
         <p className="text-[10px] text-[#777777] tracking-[0.2em] uppercase">Transaction Progress</p>
         {!isTerminal && eta > 0 && (
           <span className="text-[10px] text-[#c9a962] tracking-widest tabular-nums">
@@ -99,17 +102,28 @@ export function TransactionTimeline({
         )}
       </div>
 
+      {/* Progress bar */}
+      <div className="h-1 w-full bg-[#1a1a1a] mb-3" aria-hidden="true">
+        <div
+          className={cn(
+            'h-full transition-all duration-700',
+            isError ? 'bg-red-500' : isSuccess ? 'bg-green-500' : 'bg-[#c9a962]'
+          )}
+          style={{ width: `${progressPct}%` }}
+        />
+      </div>
+
       {/* Stage list */}
       <div className="relative">
         {/* Vertical connector line */}
         <div className="absolute left-[7px] top-3 bottom-3 w-px bg-[#222222]" aria-hidden="true" />
 
         <div className="space-y-0">
-          {stages.map((stage, idx) => {
+          {stages.map((stage) => {
             const stageActiveIdx = ACTIVE_STEPS.indexOf(stage.id);
             const isCompleted = !isError && activeIdx > stageActiveIdx;
             const isActive = !isError && activeIdx === stageActiveIdx;
-            const isPending = isError ? false : activeIdx < stageActiveIdx;
+            const isPending = !isError && activeIdx < stageActiveIdx;
             const isErrorStage = isError && stageActiveIdx === activeIdx;
 
             return (
@@ -141,18 +155,31 @@ export function TransactionTimeline({
 
                 {/* Stage content */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <span
-                      className={cn(
-                        'text-[10px] tracking-[0.1em] uppercase font-semibold',
-                        isCompleted && 'text-green-500/70',
-                        isActive && 'text-white',
-                        isErrorStage && 'text-red-400',
-                        isPending && 'text-[#444444]'
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'text-[10px] tracking-[0.1em] uppercase font-semibold',
+                          isCompleted && 'text-green-500/70',
+                          isActive && 'text-white',
+                          isErrorStage && 'text-red-400',
+                          isPending && 'text-[#444444]'
+                        )}
+                      >
+                        {stage.label}
+                      </span>
+                      {stage.chain && (
+                        <span className={cn(
+                          'text-[8px] px-1 py-0.5 border tracking-widest uppercase',
+                          isCompleted && 'border-green-500/20 text-green-500/40',
+                          isActive && 'border-[#c9a962]/30 text-[#c9a962]/60',
+                          isErrorStage && 'border-red-500/20 text-red-400/50',
+                          isPending && 'border-[#2a2a2a] text-[#333333]'
+                        )}>
+                          {stage.chain}
+                        </span>
                       )}
-                    >
-                      {stage.label}
-                    </span>
+                    </div>
                     {isPending && stage.estimatedSeconds > 0 && (
                       <span className="text-[9px] text-[#444444] tabular-nums flex-shrink-0">
                         {formatEta(stage.estimatedSeconds)}
