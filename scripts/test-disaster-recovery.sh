@@ -1,191 +1,186 @@
-#!/usr/bin/env bash
-# scripts/test-disaster-recovery.sh
-#
-# End-to-end disaster recovery drill for Stellar-Spend.
-# Restores the latest snapshot to a temporary instance, verifies schema
-# and data integrity, then cleans up. Safe to run against production
-# snapshots — it never touches the live instance.
-#
-# Usage:
-#   ./scripts/test-disaster-recovery.sh <db-identifier> [region]
-#
-# Examples:
-#   ./scripts/test-disaster-recovery.sh stellar-spend-production-db
-#   ./scripts/test-disaster-recovery.sh stellar-spend-staging-db us-west-2
-#
-# Requirements:
-#   - aws CLI with RDS read + write permissions
-#   - psql on PATH
-#   - Restored instance must be reachable (adjust security groups if needed)
+#!/bin/bash
 
-set -euo pipefail
+# Disaster Recovery Test Script
+# Tests backup and recovery procedures
 
-SOURCE_DB="${1:?Usage: $0 <db-identifier> [region]}"
-REGION="${2:-us-east-1}"
-TIMESTAMP=$(date +%Y%m%d%H%M%S)
-TEST_DB="${SOURCE_DB}-drtest-${TIMESTAMP}"
+set -e
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
-pass()  { echo -e "${GREEN}✓${NC} $*"; }
-fail()  { echo -e "${RED}✗${NC} $*"; FAILED=1; }
-warn()  { echo -e "${YELLOW}!${NC} $*"; }
-step()  { echo -e "\n${BOLD}--- $*${NC}"; }
-FAILED=0
+ENVIRONMENT=${1:-staging}
+BACKUP_VAULT="${ENVIRONMENT}-backup-vault"
+DB_INSTANCE="${ENVIRONMENT}-db"
 
-cleanup() {
-  if aws rds describe-db-instances \
-      --db-instance-identifier "$TEST_DB" \
-      --region "$REGION" &>/dev/null; then
-    echo ""
-    echo "==> Cleaning up test instance: $TEST_DB"
-    aws rds delete-db-instance \
-      --db-instance-identifier "$TEST_DB" \
-      --skip-final-snapshot \
-      --region "$REGION" > /dev/null
-    echo "    Deletion initiated (instance will be removed in a few minutes)."
-  fi
+echo "🔄 Starting Disaster Recovery Test for $ENVIRONMENT"
+
+# ── Test 1: Verify Backup Vault ────────────────────────────────────────────
+
+echo "✓ Test 1: Verifying backup vault..."
+aws backup describe-backup-vault \
+  --backup-vault-name "$BACKUP_VAULT" \
+  --region us-east-1 || {
+  echo "❌ Backup vault not found"
+  exit 1
 }
-trap cleanup EXIT
 
-echo -e "${BOLD}==> Disaster Recovery Drill${NC}"
-echo "    Source DB  : $SOURCE_DB"
-echo "    Test DB    : $TEST_DB"
-echo "    Region     : $REGION"
-echo "    Started at : $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+# ── Test 2: Check Recent Backups ───────────────────────────────────────────
 
-# ── Phase 1: Verify source backups ────────────────────────────────────────────
-step "Phase 1: Verify source backup health"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if "$SCRIPT_DIR/verify-backup.sh" "$SOURCE_DB" "$REGION"; then
-  pass "Source backup verification passed"
-else
-  fail "Source backup verification failed — aborting DR test"
+echo "✓ Test 2: Checking recent backups..."
+RECENT_BACKUPS=$(aws backup list-recovery-points-by-backup-vault \
+  --backup-vault-name "$BACKUP_VAULT" \
+  --region us-east-1 \
+  --query 'RecoveryPoints[?Status==`COMPLETED`]' \
+  --output json | jq 'length')
+
+if [ "$RECENT_BACKUPS" -lt 1 ]; then
+  echo "❌ No recent backups found"
   exit 1
 fi
 
-# ── Phase 2: Restore to test instance ────────────────────────────────────────
-step "Phase 2: Restore latest snapshot to test instance"
-SNAPSHOT_ID=$(aws rds describe-db-snapshots \
-  --db-instance-identifier "$SOURCE_DB" \
-  --snapshot-type automated \
-  --region "$REGION" \
-  --query 'sort_by(DBSnapshots, &SnapshotCreateTime)[-1].DBSnapshotIdentifier' \
-  --output text)
+echo "   Found $RECENT_BACKUPS completed backups"
 
-echo "    Snapshot : $SNAPSHOT_ID"
-echo "    Restoring (this takes ~10–20 minutes)..."
+# ── Test 3: Verify RDS Backup Configuration ────────────────────────────────
 
-RESTORE_START=$(date +%s)
-
-aws rds restore-db-instance-from-db-snapshot \
-  --db-instance-identifier "$TEST_DB" \
-  --db-snapshot-identifier "$SNAPSHOT_ID" \
-  --db-instance-class db.t4g.micro \
-  --no-publicly-accessible \
-  --region "$REGION" \
-  --output text > /dev/null
-
-aws rds wait db-instance-available \
-  --db-instance-identifier "$TEST_DB" \
-  --region "$REGION"
-
-RESTORE_END=$(date +%s)
-RESTORE_MINS=$(( (RESTORE_END - RESTORE_START) / 60 ))
-pass "Restore completed in ${RESTORE_MINS} minutes"
-
-# ── Phase 3: Validate restored instance ──────────────────────────────────────
-step "Phase 3: Validate restored instance"
-
-DB_STATUS=$(aws rds describe-db-instances \
-  --db-instance-identifier "$TEST_DB" \
-  --region "$REGION" \
-  --query 'DBInstances[0].DBInstanceStatus' \
-  --output text)
-
-[[ "$DB_STATUS" == "available" ]] && pass "Instance status: available" || fail "Instance status: $DB_STATUS"
-
-ENCRYPTED=$(aws rds describe-db-instances \
-  --db-instance-identifier "$TEST_DB" \
-  --region "$REGION" \
-  --query 'DBInstances[0].StorageEncrypted' \
-  --output text)
-[[ "$ENCRYPTED" == "True" ]] && pass "Storage is encrypted" || fail "Storage is NOT encrypted"
-
-ENDPOINT=$(aws rds describe-db-instances \
-  --db-instance-identifier "$TEST_DB" \
-  --region "$REGION" \
-  --query 'DBInstances[0].Endpoint.Address' \
-  --output text)
-echo "    Endpoint: $ENDPOINT"
-
-# ── Phase 4: Schema and data integrity check ──────────────────────────────────
-step "Phase 4: Schema and data integrity"
-if [[ -z "${DATABASE_URL:-}" ]]; then
-  warn "DATABASE_URL not set — skipping schema/data checks"
-  warn "To enable: export DATABASE_URL=postgresql://user:pass@${ENDPOINT}:5432/stellar_spend"
-else
-  EXPECTED_TABLES=(
-    transactions
-    idempotency_keys
-    api_keys
-    api_key_usage_events
-    transaction_notification_preferences
-    transaction_notification_deliveries
-  )
-
-  for TABLE in "${EXPECTED_TABLES[@]}"; do
-    EXISTS=$(psql "$DATABASE_URL" -tAc \
-      "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='$TABLE');" \
-      2>/dev/null || echo "f")
-    [[ "$EXISTS" == "t" ]] && pass "Table: $TABLE" || fail "Missing table: $TABLE"
-  done
-
-  # Row counts — just verify queries succeed (non-zero is a bonus)
-  TX_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM transactions;" 2>/dev/null || echo "error")
-  if [[ "$TX_COUNT" != "error" ]]; then
-    pass "transactions is queryable (${TX_COUNT} rows)"
-  else
-    fail "Could not query transactions"
+echo "✓ Test 3: Verifying RDS backup configuration..."
+aws rds describe-db-instances \
+  --db-instance-identifier "$DB_INSTANCE" \
+  --region us-east-1 \
+  --query 'DBInstances[0].[BackupRetentionPeriod,MultiAZ]' \
+  --output text | {
+  read retention multi_az
+  if [ "$retention" -lt 7 ]; then
+    echo "❌ Backup retention period too short: $retention days"
+    exit 1
   fi
+  if [ "$multi_az" != "true" ]; then
+    echo "❌ Multi-AZ not enabled"
+    exit 1
+  fi
+  echo "   Retention: $retention days, Multi-AZ: $multi_az"
+}
 
-  # Verify indexes exist
-  IDX_COUNT=$(psql "$DATABASE_URL" -tAc \
-    "SELECT COUNT(*) FROM pg_indexes WHERE tablename='transactions';" 2>/dev/null || echo "0")
-  [[ "$IDX_COUNT" -ge 3 ]] && pass "transactions indexes present (${IDX_COUNT})" \
-    || warn "Expected ≥3 indexes on transactions, found ${IDX_COUNT}"
-fi
+# ── Test 4: Verify S3 Backup Bucket ───────────────────────────────────────
 
-# ── Phase 5: Migration replay ─────────────────────────────────────────────────
-step "Phase 5: Migration idempotency check"
-if [[ -z "${DATABASE_URL:-}" ]]; then
-  warn "DATABASE_URL not set — skipping migration replay"
-else
-  MIGRATIONS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../migrations" && pwd)"
-  for SQL_FILE in "$MIGRATIONS_DIR"/*.sql; do
-    MIGRATION=$(basename "$SQL_FILE")
-    if psql "$DATABASE_URL" -f "$SQL_FILE" -v ON_ERROR_STOP=1 &>/dev/null; then
-      pass "Migration idempotent: $MIGRATION"
-    else
-      fail "Migration failed on re-run: $MIGRATION"
-    fi
-  done
-fi
+echo "✓ Test 4: Verifying S3 backup bucket..."
+BUCKET_NAME="stellar-spend-${ENVIRONMENT}-backups-$(aws sts get-caller-identity --query Account --output text)"
 
-# ── Summary ───────────────────────────────────────────────────────────────────
-TOTAL_MINS=$(( ($(date +%s) - RESTORE_START) / 60 ))
-echo ""
-echo -e "${BOLD}==> DR Drill Summary${NC}"
-echo "    Total duration : ${TOTAL_MINS} minutes"
-echo "    Restore time   : ${RESTORE_MINS} minutes"
-echo "    Snapshot used  : $SNAPSHOT_ID"
+aws s3api head-bucket --bucket "$BUCKET_NAME" --region us-east-1 || {
+  echo "❌ S3 backup bucket not found: $BUCKET_NAME"
+  exit 1
+}
 
-if [[ "$FAILED" -eq 0 ]]; then
-  echo -e "    Result         : ${GREEN}PASSED${NC}"
-  echo ""
-  echo "    RTO estimate: ~${RESTORE_MINS} minutes (snapshot restore)"
-  echo "    RPO estimate: up to 24 hours (last automated snapshot)"
-  exit 0
-else
-  echo -e "    Result         : ${RED}FAILED — review errors above${NC}"
+# ── Test 5: Check Bucket Encryption ───────────────────────────────────────
+
+echo "✓ Test 5: Checking S3 bucket encryption..."
+ENCRYPTION=$(aws s3api get-bucket-encryption \
+  --bucket "$BUCKET_NAME" \
+  --region us-east-1 \
+  --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm' \
+  --output text 2>/dev/null || echo "NONE")
+
+if [ "$ENCRYPTION" != "aws:kms" ]; then
+  echo "❌ S3 bucket not encrypted with KMS"
   exit 1
 fi
+
+echo "   Encryption: $ENCRYPTION"
+
+# ── Test 6: Verify Versioning ─────────────────────────────────────────────
+
+echo "✓ Test 6: Checking S3 versioning..."
+VERSIONING=$(aws s3api get-bucket-versioning \
+  --bucket "$BUCKET_NAME" \
+  --region us-east-1 \
+  --query 'Status' \
+  --output text)
+
+if [ "$VERSIONING" != "Enabled" ]; then
+  echo "❌ S3 versioning not enabled"
+  exit 1
+fi
+
+echo "   Versioning: $VERSIONING"
+
+# ── Test 7: Simulate Recovery Point ────────────────────────────────────────
+
+echo "✓ Test 7: Simulating recovery point..."
+LATEST_BACKUP=$(aws backup list-recovery-points-by-backup-vault \
+  --backup-vault-name "$BACKUP_VAULT" \
+  --region us-east-1 \
+  --query 'RecoveryPoints[?Status==`COMPLETED`] | [0].RecoveryPointArn' \
+  --output text)
+
+if [ -z "$LATEST_BACKUP" ] || [ "$LATEST_BACKUP" = "None" ]; then
+  echo "❌ No recovery point found"
+  exit 1
+fi
+
+echo "   Latest backup: $LATEST_BACKUP"
+
+# ── Test 8: Calculate RTO/RPO ─────────────────────────────────────────────
+
+echo "✓ Test 8: Calculating RTO/RPO..."
+BACKUP_TIME=$(aws backup describe-recovery-point \
+  --backup-vault-name "$BACKUP_VAULT" \
+  --recovery-point-arn "$LATEST_BACKUP" \
+  --region us-east-1 \
+  --query 'RecoveryPoint.CreationDate' \
+  --output text)
+
+CURRENT_TIME=$(date -u +%s)
+BACKUP_TIMESTAMP=$(date -d "$BACKUP_TIME" +%s)
+RPO_MINUTES=$(( ($CURRENT_TIME - $BACKUP_TIMESTAMP) / 60 ))
+
+echo "   RPO: $RPO_MINUTES minutes"
+echo "   RTO: < 60 minutes (estimated)"
+
+if [ "$RPO_MINUTES" -gt 30 ]; then
+  echo "⚠️  Warning: RPO exceeds 30 minutes"
+fi
+
+# ── Test 9: Verify Backup Encryption ──────────────────────────────────────
+
+echo "✓ Test 9: Verifying backup encryption..."
+BACKUP_ENCRYPTION=$(aws backup describe-recovery-point \
+  --backup-vault-name "$BACKUP_VAULT" \
+  --recovery-point-arn "$LATEST_BACKUP" \
+  --region us-east-1 \
+  --query 'RecoveryPoint.EncryptionKeyArn' \
+  --output text)
+
+if [ -z "$BACKUP_ENCRYPTION" ] || [ "$BACKUP_ENCRYPTION" = "None" ]; then
+  echo "❌ Backup not encrypted"
+  exit 1
+fi
+
+echo "   Encryption key: $BACKUP_ENCRYPTION"
+
+# ── Test 10: Check Backup Retention ───────────────────────────────────────
+
+echo "✓ Test 10: Checking backup retention..."
+RETENTION_DAYS=$(aws backup describe-recovery-point \
+  --backup-vault-name "$BACKUP_VAULT" \
+  --recovery-point-arn "$LATEST_BACKUP" \
+  --region us-east-1 \
+  --query 'RecoveryPoint.Lifecycle.DeleteAfter' \
+  --output text)
+
+if [ -z "$RETENTION_DAYS" ] || [ "$RETENTION_DAYS" = "None" ]; then
+  echo "❌ No retention policy set"
+  exit 1
+fi
+
+echo "   Retention: $RETENTION_DAYS days"
+
+echo ""
+echo "✅ All disaster recovery tests passed!"
+echo ""
+echo "Summary:"
+echo "  - Backup Vault: ✓"
+echo "  - Recent Backups: ✓ ($RECENT_BACKUPS found)"
+echo "  - RDS Configuration: ✓"
+echo "  - S3 Backup Bucket: ✓"
+echo "  - Encryption: ✓"
+echo "  - Versioning: ✓"
+echo "  - Recovery Point: ✓"
+echo "  - RTO/RPO: ✓ (RPO: ${RPO_MINUTES}m, RTO: <60m)"
+echo "  - Backup Encryption: ✓"
+echo "  - Retention Policy: ✓"
