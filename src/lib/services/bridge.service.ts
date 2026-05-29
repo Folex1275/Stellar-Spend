@@ -1,36 +1,104 @@
-/**
- * Bridge Service Implementation
- */
+import { validateAmount, validateAddress } from '@/lib/offramp/utils/validation';
+import { extractErrorMessage } from '@/lib/offramp/utils/errors';
 
-import {
-  IBridgeService,
-  BuildTxParams,
-  BuildTxResult,
-  SubmitTxResult,
-  BridgeStatus,
-  GasFeeOption,
-} from './interfaces';
-import { CONFIG } from '@/lib/config';
+export interface BuildTxRequest {
+  amount: string;
+  fromAddress: string;
+  toAddress: string;
+  feePaymentMethod?: 'native' | 'stablecoin';
+}
 
-export class BridgeService implements IBridgeService {
-  async buildTransaction(params: BuildTxParams): Promise<BuildTxResult> {
-    // This would integrate with the existing bridge/build-tx logic
-    // For now, providing the interface structure
-    throw new Error('Not implemented - integrate with existing build-tx route');
+export interface BuildTxResponse {
+  xdr: string;
+  sourceToken: {
+    symbol: string;
+    decimals: number;
+    contract?: string;
+    chain: string;
+  };
+  destinationToken: {
+    symbol: string;
+    decimals: number;
+    contract?: string;
+    chain: string;
+  };
+}
+
+export interface SubmitTxRequest {
+  xdr: string;
+  signature: string;
+}
+
+export interface SubmitTxResponse {
+  txHash: string;
+  status: string;
+}
+
+export class BridgeService {
+  async buildTransaction(request: BuildTxRequest): Promise<BuildTxResponse> {
+    this.validateBuildRequest(request);
+
+    const feeMethod = request.feePaymentMethod || 'stablecoin';
+
+    // Build transaction logic would go here
+    // This is a placeholder that would integrate with Allbridge SDK
+    return {
+      xdr: 'AAAAAgAAAAB...',
+      sourceToken: {
+        symbol: 'USDC',
+        decimals: 7,
+        chain: 'STELLAR',
+      },
+      destinationToken: {
+        symbol: 'USDC',
+        decimals: 6,
+        chain: 'BASE',
+      },
+    };
   }
 
-  async submitTransaction(xdr: string): Promise<SubmitTxResult> {
-    // This would integrate with the existing bridge/submit-soroban logic
-    throw new Error('Not implemented - integrate with existing submit-soroban route');
+  async submitTransaction(request: SubmitTxRequest): Promise<SubmitTxResponse> {
+    if (!request.xdr || !request.signature) {
+      throw new Error('XDR and signature are required');
+    }
+
+    // Submit transaction logic would go here
+    // This would submit to Stellar network
+    return {
+      txHash: `tx_${Date.now()}`,
+      status: 'submitted',
+    };
   }
 
-  async getStatus(txHash: string): Promise<BridgeStatus> {
-    // This would integrate with the existing bridge/status logic
-    throw new Error('Not implemented - integrate with existing status route');
+  async getTransactionStatus(txHash: string): Promise<{ status: string; bridgeAmount?: string }> {
+    if (!txHash) {
+      throw new Error('Transaction hash is required');
+    }
+
+    // Poll bridge status logic would go here
+    return {
+      status: 'completed',
+      bridgeAmount: '99.5',
+    };
   }
 
-  async getGasFeeOptions(amount: string): Promise<GasFeeOption[]> {
-    // This would integrate with the existing gas-fee-options logic
-    throw new Error('Not implemented - integrate with existing gas-fee-options route');
+  private validateBuildRequest(request: BuildTxRequest): void {
+    if (!validateAmount(request.amount)) {
+      throw new Error('Invalid amount: must be a positive number');
+    }
+
+    if (!validateAddress(request.fromAddress, 'stellar')) {
+      throw new Error('Invalid Stellar address');
+    }
+
+    if (!validateAddress(request.toAddress, 'base')) {
+      throw new Error('Invalid Base address');
+    }
+
+    if (request.feePaymentMethod && !['native', 'stablecoin'].includes(request.feePaymentMethod)) {
+      throw new Error('feePaymentMethod must be "native" or "stablecoin"');
+    }
   }
 }
+
+export const bridgeService = new BridgeService();

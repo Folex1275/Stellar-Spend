@@ -1,15 +1,16 @@
-/**
- * Service Container for Dependency Injection
- */
-
-import { IQuoteService, IBridgeService, IPayoutService, IWalletService } from './interfaces';
 import { QuoteService } from './quote.service';
 import { BridgeService } from './bridge.service';
 import { PayoutService } from './payout.service';
+import { WebhookService } from './webhook.service';
+import { TransactionService } from './transaction.service';
 
+/**
+ * Dependency Injection Container
+ * Manages service instantiation and lifecycle
+ */
 export class ServiceContainer {
   private static instance: ServiceContainer;
-  private services: Map<string, any> = new Map();
+  private services: Map<string, unknown> = new Map();
 
   private constructor() {
     this.registerDefaultServices();
@@ -23,34 +24,49 @@ export class ServiceContainer {
   }
 
   private registerDefaultServices(): void {
-    this.register<IQuoteService>('QuoteService', new QuoteService());
-    this.register<IBridgeService>('BridgeService', new BridgeService());
-    this.register<IPayoutService>('PayoutService', new PayoutService());
+    this.register('quote', new QuoteService());
+    this.register('bridge', new BridgeService());
+    this.register('payout', new PayoutService());
+    this.register('webhook', new WebhookService());
+    this.register('transaction', new TransactionService());
   }
 
-  register<T>(key: string, service: T): void {
-    this.services.set(key, service);
+  register<T>(name: string, service: T): void {
+    this.services.set(name, service);
   }
 
-  get<T>(key: string): T {
-    const service = this.services.get(key);
+  get<T>(name: string): T {
+    const service = this.services.get(name);
     if (!service) {
-      throw new Error(`Service ${key} not found in container`);
+      throw new Error(`Service "${name}" not found in container`);
     }
     return service as T;
   }
 
-  getQuoteService(): IQuoteService {
-    return this.get<IQuoteService>('QuoteService');
+  getQuoteService(): QuoteService {
+    return this.get<QuoteService>('quote');
   }
 
-  getBridgeService(): IBridgeService {
-    return this.get<IBridgeService>('BridgeService');
+  getBridgeService(): BridgeService {
+    return this.get<BridgeService>('bridge');
   }
 
-  getPayoutService(): IPayoutService {
-    return this.get<IPayoutService>('PayoutService');
+  getPayoutService(): PayoutService {
+    return this.get<PayoutService>('payout');
+  }
+
+  getWebhookService(): WebhookService {
+    return this.get<WebhookService>('webhook');
+  }
+
+  getTransactionService(): TransactionService {
+    return this.get<TransactionService>('transaction');
+  }
+
+  reset(): void {
+    this.services.clear();
+    this.registerDefaultServices();
   }
 }
 
-export const serviceContainer = ServiceContainer.getInstance();
+export const container = ServiceContainer.getInstance();

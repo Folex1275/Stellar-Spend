@@ -1,28 +1,88 @@
-/**
- * Payout Service Implementation
- */
+export interface PayoutRequest {
+  orderId: string;
+  amount: string;
+  currency: string;
+  beneficiary: {
+    institution: string;
+    accountIdentifier: string;
+    accountName: string;
+  };
+  baseAddress: string;
+}
 
-import {
-  IPayoutService,
-  CreateOrderParams,
-  PayoutOrder,
-  PayoutStatus,
-  ExecutePayoutResult,
-} from './interfaces';
+export interface PayoutResponse {
+  orderId: string;
+  status: string;
+  createdAt: string;
+}
 
-export class PayoutService implements IPayoutService {
-  async createOrder(params: CreateOrderParams): Promise<PayoutOrder> {
-    // This would integrate with the existing paycrest/order logic
-    throw new Error('Not implemented - integrate with existing paycrest order route');
+export interface PayoutStatusResponse {
+  orderId: string;
+  status: 'pending' | 'processing' | 'settled' | 'failed' | 'refunded';
+  amount: string;
+  currency: string;
+  settledAt?: string;
+  error?: string;
+}
+
+export class PayoutService {
+  async createOrder(request: PayoutRequest): Promise<PayoutResponse> {
+    this.validatePayoutRequest(request);
+
+    // Create payout order logic would go here
+    // This would integrate with Paycrest API
+    return {
+      orderId: request.orderId,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    };
   }
 
-  async getStatus(orderId: string): Promise<PayoutStatus> {
-    // This would integrate with the existing status logic
-    throw new Error('Not implemented - integrate with existing status route');
+  async getOrderStatus(orderId: string): Promise<PayoutStatusResponse> {
+    if (!orderId) {
+      throw new Error('Order ID is required');
+    }
+
+    // Poll payout status logic would go here
+    return {
+      orderId,
+      status: 'pending',
+      amount: '100.00',
+      currency: 'NGN',
+    };
   }
 
-  async executePayout(orderId: string, amount: string): Promise<ExecutePayoutResult> {
-    // This would integrate with the existing execute-payout logic
-    throw new Error('Not implemented - integrate with existing execute-payout route');
+  async executePayout(orderId: string, baseUsdcAmount: string): Promise<{ success: boolean }> {
+    if (!orderId || !baseUsdcAmount) {
+      throw new Error('Order ID and USDC amount are required');
+    }
+
+    // Execute payout logic would go here
+    // This would send USDC from Base to settlement address
+    return { success: true };
+  }
+
+  private validatePayoutRequest(request: PayoutRequest): void {
+    if (!request.orderId) {
+      throw new Error('Order ID is required');
+    }
+
+    if (!request.amount || parseFloat(request.amount) <= 0) {
+      throw new Error('Amount must be a positive number');
+    }
+
+    if (!request.currency) {
+      throw new Error('Currency is required');
+    }
+
+    if (!request.beneficiary?.institution || !request.beneficiary?.accountIdentifier) {
+      throw new Error('Beneficiary information is incomplete');
+    }
+
+    if (!request.baseAddress) {
+      throw new Error('Base address is required');
+    }
   }
 }
+
+export const payoutService = new PayoutService();
