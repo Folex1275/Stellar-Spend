@@ -2,6 +2,24 @@
  * Centralized configuration module for all application constants
  */
 
+export { type Config, ConfigSchema, validateConfig } from './schema';
+
+export {
+  developmentConfig,
+  stagingConfig,
+  productionConfig,
+  getEnvironmentConfig,
+} from './environments';
+
+export {
+  ConfigManager,
+  type ConfigVersion,
+  getConfigManager,
+  getConfig,
+  getConfigSection,
+} from './manager';
+
+// Legacy CONFIG export for backward compatibility
 export const CONFIG = {
   // API Configuration
   API: {
@@ -66,4 +84,4 @@ export const CONFIG = {
   },
 } as const;
 
-export type Config = typeof CONFIG;
+export type LegacyConfig = typeof CONFIG;
