@@ -30,3 +30,12 @@ stellar_usdc_issuer     = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4K
 # paycrest_webhook_secret = set via TF_VAR_paycrest_webhook_secret
 # base_private_key        = set via TF_VAR_base_private_key
 # database_url            = set via TF_VAR_database_url
+
+# CDN / CloudFront
+cf_price_class               = "PriceClass_100"
+cf_domain_aliases            = []
+cf_acm_certificate_arn       = ""
+cf_geo_restriction_type      = "blacklist"
+cf_geo_restriction_locations = []
+cf_invalidation_trigger      = "initial"
+# cf_origin_secret = set via TF_VAR_cf_origin_secret

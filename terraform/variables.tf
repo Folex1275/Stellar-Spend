@@ -138,3 +138,62 @@ variable "log_group_name" {
   type        = string
   default     = "/stellar-spend/production"
 }
+
+# ── CloudFront / CDN ──────────────────────────────────────────────────────────
+
+variable "cf_price_class" {
+  description = "CloudFront price class (PriceClass_100 = US/EU, PriceClass_200 = + Asia, PriceClass_All = global)"
+  type        = string
+  default     = "PriceClass_100"
+  validation {
+    condition     = contains(["PriceClass_100", "PriceClass_200", "PriceClass_All"], var.cf_price_class)
+    error_message = "cf_price_class must be PriceClass_100, PriceClass_200, or PriceClass_All."
+  }
+}
+
+variable "cf_domain_aliases" {
+  description = "Custom domain aliases for the CloudFront distribution (e.g. [\"cdn.example.com\"]). Leave empty to use the default *.cloudfront.net domain."
+  type        = list(string)
+  default     = []
+}
+
+variable "cf_acm_certificate_arn" {
+  description = "ACM certificate ARN (must be in us-east-1) for custom domain aliases. Required when cf_domain_aliases is non-empty."
+  type        = string
+  default     = ""
+}
+
+variable "cf_origin_secret" {
+  description = "Shared secret sent as X-CloudFront-Secret header to the ALB origin to restrict direct access."
+  type        = string
+  sensitive   = true
+  default     = "change-me-in-production"
+}
+
+variable "cf_geo_restriction_type" {
+  description = "Geo-restriction type: 'whitelist' or 'blacklist'. Only used when cf_geo_restriction_locations is non-empty."
+  type        = string
+  default     = "blacklist"
+  validation {
+    condition     = contains(["whitelist", "blacklist"], var.cf_geo_restriction_type)
+    error_message = "cf_geo_restriction_type must be 'whitelist' or 'blacklist'."
+  }
+}
+
+variable "cf_geo_restriction_locations" {
+  description = "ISO 3166-1 alpha-2 country codes to whitelist or blacklist. Empty list disables geo-restrictions."
+  type        = list(string)
+  default     = []
+}
+
+variable "cf_invalidation_trigger" {
+  description = "Bump this value (e.g. a timestamp or deploy ID) to trigger a CloudFront cache invalidation on the next terraform apply."
+  type        = string
+  default     = "initial"
+}
+
+variable "alarm_sns_arn" {
+  description = "SNS topic ARN to receive CloudFront alarm notifications. Leave empty to disable."
+  type        = string
+  default     = ""
+}

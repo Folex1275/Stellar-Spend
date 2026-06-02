@@ -38,3 +38,23 @@ output "cloudwatch_log_group" {
   description = "CloudWatch log group name for app logs"
   value       = aws_cloudwatch_log_group.app.name
 }
+
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID (use for cache invalidations)"
+  value       = aws_cloudfront_distribution.main.id
+}
+
+output "cloudfront_domain_name" {
+  description = "Default CloudFront domain name (e.g. d1234.cloudfront.net) — set as NEXT_PUBLIC_CDN_URL"
+  value       = "https://${aws_cloudfront_distribution.main.domain_name}"
+}
+
+output "cloudfront_hosted_zone_id" {
+  description = "CloudFront hosted zone ID (for Route 53 alias records)"
+  value       = aws_cloudfront_distribution.main.hosted_zone_id
+}
+
+output "cf_logs_bucket" {
+  description = "S3 bucket storing CloudFront access logs"
+  value       = aws_s3_bucket.cf_logs.bucket
+}
