@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
+import { useFocusTrap, useFocusRestore } from "@/hooks/useFocusTrap";
 
 export interface HelpTopic {
   id: string;
@@ -19,6 +20,24 @@ export interface HelpModalProps {
 export function HelpModal({ isOpen, onClose, topics }: HelpModalProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  useFocusTrap(dialogRef, isOpen);
+  useFocusRestore(isOpen);
+
+  // ESC to close
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isOpen, onClose]);
+
+  // Focus the search input when the modal opens
+  useEffect(() => {
+    if (isOpen) setTimeout(() => searchRef.current?.focus(), 50);
+  }, [isOpen]);
 
   const filteredTopics = topics.filter((topic) => {
     const query = searchQuery.toLowerCase();
@@ -39,11 +58,13 @@ export function HelpModal({ isOpen, onClose, topics }: HelpModalProps) {
     <div
       className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
       onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="help-modal-title"
+      aria-hidden="true"
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="help-modal-title"
         className="bg-[#111111] border border-[#333333] rounded-lg max-w-2xl w-full max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
@@ -84,8 +105,10 @@ export function HelpModal({ isOpen, onClose, topics }: HelpModalProps) {
             {/* Search */}
             <div className="p-4 border-b border-[#333333]">
               <input
+                ref={searchRef}
                 type="text"
                 placeholder="Search help..."
+                aria-label="Search help topics"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={cn(

@@ -6,6 +6,7 @@ import type { OfframpStep } from "@/types/stellaramp";
 import { CopyButton } from "./CopyButton";
 import { useKeyboardNavigation } from "@/hooks/useKeyboardNavigation";
 import { TransactionReceipt, type ReceiptData } from "./TransactionReceipt";
+import { useFocusTrap, useFocusRestore } from "@/hooks/useFocusTrap";
 
 // ---------------------------------------------------------------------------
 // Per-step metadata: label, sub-message, ETA seconds
@@ -101,6 +102,9 @@ export function TransactionProgressModal({
   const [shakeKey, setShakeKey] = useState(0);
   const prevStep = useRef<OfframpStep>("idle");
   const eta = useEtaCountdown(step);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, isVisible);
+  useFocusRestore(isVisible);
 
   useEffect(() => {
     if (step !== "idle") setIsVisible(true);
@@ -135,6 +139,7 @@ export function TransactionProgressModal({
 
       {/* Modal card */}
       <div
+        ref={dialogRef}
         key={shakeKey}
         role="dialog"
         aria-modal="true"
