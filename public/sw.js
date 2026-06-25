@@ -88,6 +88,8 @@ self.addEventListener("message", (event) => {
 self.addEventListener("sync", (event) => {
   if (event.tag === "sync-failed-transactions") {
     event.waitUntil(syncFailedTransactions());
+  } else if (event.tag === "sync-transaction-history") {
+    event.waitUntil(syncTransactionHistory());
   }
 });
 
@@ -114,6 +116,14 @@ async function syncFailedTransactions() {
     }
   } catch (err) {
     console.error("Background sync failed:", err);
+  }
+}
+
+async function syncTransactionHistory() {
+  try {
+    await notifyClients({ type: "trigger-history-sync" });
+  } catch (err) {
+    console.error("Failed to trigger history sync:", err);
   }
 }
 

@@ -3,10 +3,11 @@
 import { useState, useEffect } from "react";
 import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/hooks/useTheme";
+import { useSyncSettings } from "@/hooks/useSyncSettings";
 import { KYCLimitManager } from "@/components/KYCLimitManager";
 import { cn } from "@/lib/cn";
 
-type SettingsSection = "profile" | "security" | "appearance" | "preferences";
+type SettingsSection = "profile" | "security" | "appearance" | "preferences" | "privacy";
 
 export default function SettingsPage() {
   const [activeSection, setActiveSection] =
@@ -18,15 +19,26 @@ export default function SettingsPage() {
     marketing: false,
   });
   const [currency, setCurrency] = useState("USDC");
+  const [userAddress, setUserAddress] = useState<string | null>(null);
 
   const { t, language, setLanguage } = useI18n();
   const { theme, setTheme } = useTheme();
+  const syncSettings = useSyncSettings(userAddress || undefined);
 
   // Handle deep linking
   useEffect(() => {
     const hash = window.location.hash.replace("#", "") as SettingsSection;
-    if (["profile", "security", "appearance", "preferences"].includes(hash)) {
+    if (["profile", "security", "appearance", "preferences", "privacy"].includes(hash)) {
       setActiveSection(hash);
+    }
+  }, []);
+
+  // TODO: Get user address from wallet context
+  useEffect(() => {
+    // Placeholder - should get from wallet context
+    const stored = localStorage.getItem("userAddress");
+    if (stored) {
+      setUserAddress(stored);
     }
   }, []);
 
@@ -48,6 +60,7 @@ export default function SettingsPage() {
     { id: "security", label: t("settings.security"), icon: "🔒" },
     { id: "appearance", label: t("settings.appearance"), icon: "🎨" },
     { id: "preferences", label: t("settings.preferences"), icon: "⚙️" },
+    { id: "privacy", label: "Privacy & Sync", icon: "🔐" },
   ];
 
   return (
@@ -257,6 +270,92 @@ export default function SettingsPage() {
                         />
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Privacy & Sync Section */}
+            {activeSection === "privacy" && (
+              <div className="space-y-8">
+                <header>
+                  <h2 className="text-lg font-bold text-white uppercase tracking-wider mb-1">
+                    Privacy &amp; Sync
+                  </h2>
+                  <p className="text-xs text-[#555] uppercase tracking-widest">
+                    Control how your transaction history is stored and synchronized
+                  </p>
+                </header>
+
+                <div className="space-y-6">
+                  <div className="bg-[#0f0f0f] border border-[#222] p-6 rounded">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h3 className="text-sm font-bold text-white mb-2">
+                          Transaction History Sync
+                        </h3>
+                        <p className="text-xs text-[#777] mb-4">
+                          Enable synchronization of your transaction history across devices.
+                          When enabled, your history will be securely stored on our servers
+                          and available after logging in from a different device.
+                        </p>
+                        <p className="text-xs text-[#555]">
+                          Status: {syncSettings.syncStatus.isPending ? "Syncing..." : "Ready"} 
+                          {syncSettings.syncStatus.lastSyncAt > 0 && (
+                            <span> • Last synced: {syncSettings.syncStatus.formattedLastSync}</span>
+                          )}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => syncSettings.toggleSync(!syncSettings.settings.syncEnabled)}
+                        disabled={syncSettings.loading}
+                        className={cn(
+                          "px-6 py-3 text-xs font-bold uppercase tracking-widest transition-all rounded",
+                          syncSettings.settings.syncEnabled
+                            ? "bg-red-900/30 border border-red-700 text-red-400 hover:bg-red-900/50"
+                            : "bg-[#c9a962]/20 border border-[#c9a962] text-[#c9a962] hover:bg-[#c9a962]/30"
+                        )}
+                      >
+                        {syncSettings.loading ? "Updating..." : syncSettings.settings.syncEnabled ? "Disable" : "Enable"}
+                      </button>
+                    </div>
+
+                    {syncSettings.error && (
+                      <div className="mt-4 p-3 bg-red-900/20 border border-red-700 rounded text-xs text-red-300">
+                        {syncSettings.error}
+                      </div>
+                    )}
+
+                    {syncSettings.settings.syncEnabled && (
+                      <div className="mt-4 p-3 bg-green-900/20 border border-green-700 rounded text-xs text-green-300">
+                        ✓ Sync enabled. Your transaction history will be automatically synchronized with our secure servers.
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-white">
+                      Sync Details
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4 text-xs">
+                      <div className="p-4 bg-[#111] border border-[#222] rounded">
+                        <p className="text-[#777] uppercase tracking-widest mb-2">Strategy</p>
+                        <p className="text-white font-bold">Last-Write-Wins</p>
+                      </div>
+                      <div className="p-4 bg-[#111] border border-[#222] rounded">
+                        <p className="text-[#777] uppercase tracking-widest mb-2">Pending</p>
+                        <p className="text-white font-bold">{syncSettings.syncStatus.isPending ? "Yes" : "No"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0f0f0f] border border-[#333] p-4 rounded">
+                    <p className="text-[10px] text-[#666] leading-relaxed">
+                      <strong>Privacy Notice:</strong> When sync is enabled, your transaction metadata
+                      (amounts, addresses, notes, tags) will be stored on encrypted servers. Your sync
+                      preference is always optional and can be disabled at any time. We never share your data
+                      with third parties without explicit consent. See our privacy policy for details.
+                    </p>
                   </div>
                 </div>
               </div>
