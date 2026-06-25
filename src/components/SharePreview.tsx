@@ -23,19 +23,11 @@ export function SharePreview({ preview }: SharePreviewProps) {
           </p>
         </div>
 
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-600">Status</p>
-            <p className={`font-semibold capitalize ${statusColors[preview.status] || 'text-gray-600'}`}>
-              {preview.status}
-            </p>
-          </div>
-          {preview.bankName && (
-            <div>
-              <p className="text-sm text-gray-600">Bank</p>
-              <p className="font-semibold">{preview.bankName}</p>
-            </div>
-          )}
+        <div>
+          <p className="text-sm text-gray-600">Status</p>
+          <p className={`font-semibold capitalize ${statusColors[preview.status] || 'text-gray-600'}`}>
+            {preview.status}
+          </p>
         </div>
 
         <div className="text-xs text-gray-500">

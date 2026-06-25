@@ -5,7 +5,7 @@ import { Language } from './types';
 import { I18n } from './i18n';
 
 const STORAGE_KEY = 'stellar_language';
-const SUPPORTED: Language[] = ['en', 'es', 'fr', 'zh', 'ar', 'pt'];
+const SUPPORTED: Language[] = ['en', 'es', 'fr', 'zh', 'ar', 'pt', 'sw'];
 
 function detectBrowserLanguage(): Language {
   if (typeof navigator === 'undefined') return 'en';
@@ -54,7 +54,7 @@ export function I18nProvider({ children, defaultLanguage = 'en' }: { children: R
     language,
     setLanguage,
     t: (key: string) => i18nInstance.t(key),
-    isRTL: language === 'ar',
+    isRTL: i18nInstance.isRTL(),
   };
 
   return (

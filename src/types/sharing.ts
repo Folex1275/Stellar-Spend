@@ -15,7 +15,6 @@ export interface SharePreview {
   currency: string;
   status: string;
   timestamp: number;
-  bankName?: string;
 }
 
 export interface ShareSettings {
