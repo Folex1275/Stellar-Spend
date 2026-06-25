@@ -6,17 +6,63 @@ import { WalletAdapter, WalletType, WalletConnection, SignOptions } from './adap
 import { FreighterAdapter } from './freighter.adapter';
 import { LobstrAdapter } from './lobstr.adapter';
 
+export type WalletEventType = 'accountChange' | 'disconnect' | 'networkChange';
+export type WalletEventListener = (event: WalletEvent) => void;
+
+export interface WalletEvent {
+  type: WalletEventType;
+  walletType: WalletType;
+  data?: Record<string, unknown>;
+}
+
 export class WalletManager {
   private adapters: Map<WalletType, WalletAdapter> = new Map();
   private currentAdapter: WalletAdapter | null = null;
+  private eventListeners: Map<WalletEventType, Set<WalletEventListener>> = new Map();
 
   constructor() {
     this.registerAdapter(new FreighterAdapter());
     this.registerAdapter(new LobstrAdapter());
+    this.initializeEventListeners();
   }
 
   private registerAdapter(adapter: WalletAdapter): void {
     this.adapters.set(adapter.type, adapter);
+  }
+
+  private initializeEventListeners(): void {
+    this.eventListeners.set('accountChange', new Set());
+    this.eventListeners.set('disconnect', new Set());
+    this.eventListeners.set('networkChange', new Set());
+  }
+
+  /**
+   * Subscribe to wallet events
+   */
+  on(eventType: WalletEventType, listener: WalletEventListener): () => void {
+    const listeners = this.eventListeners.get(eventType);
+    if (listeners) {
+      listeners.add(listener);
+      // Return unsubscribe function
+      return () => listeners.delete(listener);
+    }
+    return () => {};
+  }
+
+  /**
+   * Emit wallet events
+   */
+  private emit(event: WalletEvent): void {
+    const listeners = this.eventListeners.get(event.type);
+    if (listeners) {
+      listeners.forEach(listener => {
+        try {
+          listener(event);
+        } catch (err) {
+          console.error(`Error in wallet event listener for ${event.type}:`, err);
+        }
+      });
+    }
   }
 
   /**
@@ -42,7 +88,46 @@ export class WalletManager {
 
     const connection = await adapter.connect();
     this.currentAdapter = adapter;
+    this.setupWalletListeners(walletType);
     return connection;
+  }
+
+  /**
+   * Setup event listeners for wallet changes
+   */
+  private setupWalletListeners(walletType: WalletType): void {
+    if (typeof window === 'undefined') return;
+
+    if (walletType === 'freighter') {
+      const w = window as any;
+      if (w.freighter) {
+        try {
+          w.freighter.addEventListener('publicKeyChange', () => {
+            this.emit({
+              type: 'accountChange',
+              walletType: 'freighter',
+            });
+          });
+        } catch (err) {
+          console.error('Failed to setup Freighter listener:', err);
+        }
+      }
+    } else if (walletType === 'lobstr') {
+      const w = window as any;
+      const provider = w.lobstr ?? w.stellar;
+      if (provider) {
+        try {
+          provider.addEventListener('accountChange', () => {
+            this.emit({
+              type: 'accountChange',
+              walletType: 'lobstr',
+            });
+          });
+        } catch (err) {
+          console.error('Failed to setup Lobstr listener:', err);
+        }
+      }
+    }
   }
 
   /**
