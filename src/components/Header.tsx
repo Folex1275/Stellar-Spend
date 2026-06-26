@@ -6,7 +6,9 @@ import { ThemeToggle } from "./ThemeToggle";
 import { CopyButton } from "./CopyButton";
 import { WalletModal } from "./WalletModal";
 import { LanguageSelector } from "@/lib/i18n/LanguageSelector";
+import { NotificationCenter } from "./NotificationCenter";
 import { useFxRate } from "@/hooks/useFxRate";
+import { useNotificationCenter } from "@/hooks/useNotificationCenter";
 import type { WalletType } from "@/lib/stellar/wallet-adapter";
 
 export interface HeaderProps {
@@ -98,6 +100,9 @@ export function Header({
   const { rate, flash } = useFxRate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [connectingWallet, setConnectingWallet] = useState<WalletType | null>(null);
+  
+  // Load notifications
+  const notificationCenter = useNotificationCenter(isConnected ? walletAddress || null : null);
 
   const handleOpenModal = () => {
     setIsModalOpen(true);
@@ -152,7 +157,7 @@ export function Header({
           </span>
         </div>
 
-        {/* Right: wallet button + balances */}
+        {/* Right: notifications + wallet button + balances */}
         <div className="flex flex-col items-end gap-2 max-[720px]:items-start">
           <div className="flex items-center gap-2">
             <LanguageSelector />
@@ -179,6 +184,18 @@ export function Header({
               </svg>
             </button>
             <ThemeToggle />
+            {isConnected && (
+              <NotificationCenter
+                events={notificationCenter.events}
+                unreadCount={notificationCenter.unreadCount}
+                unreadBadgeText={notificationCenter.unreadBadgeText}
+                loading={notificationCenter.loading}
+                onMarkAsRead={notificationCenter.markAsRead}
+                onMarkAllAsRead={notificationCenter.markAllAsRead}
+                onRemoveEvent={notificationCenter.removeEvent}
+                onClearAll={notificationCenter.clearAll}
+              />
+            )}
             <WalletButton
               isConnected={isConnected}
               isConnecting={isConnecting}
