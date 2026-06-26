@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { pool } from '@/lib/db/client';
-import type { NotificationDeliveryRecord } from '@/lib/notifications/types';
+import type { NotificationDeliveryRecord, NotificationDeliveryStatus } from '@/lib/notifications/types';
 
 export class NotificationDeliveryStoreError extends Error {
   constructor(message: string, public readonly cause: unknown) {
@@ -17,7 +17,7 @@ function rowToDelivery(row: Record<string, unknown>): NotificationDeliveryRecord
     eventType: row.event_type as NotificationDeliveryRecord['eventType'],
     channel: row.channel as NotificationDeliveryRecord['channel'],
     destination: (row.destination as string | null) ?? undefined,
-    status: row.status as NotificationDeliveryRecord['status'],
+    status: row.status as NotificationDeliveryStatus,
     templateId: row.template_id as string,
     subject: (row.subject as string | null) ?? undefined,
     message: row.message as string,
@@ -75,6 +75,57 @@ export async function createNotificationDelivery(
   } catch (error) {
     throw new NotificationDeliveryStoreError('Failed to create notification delivery', error);
   }
+}
+
+export async function updateNotificationDelivery(
+  id: string,
+  patch: {
+    status: NotificationDeliveryStatus;
+    attemptCount: number;
+    providerMessageId?: string;
+    errorMessage?: string;
+    sentAt?: number;
+  }
+): Promise<void> {
+  try {
+    await pool.query(
+      `
+        UPDATE transaction_notification_deliveries
+        SET status = $2,
+            attempt_count = $3,
+            provider_message_id = COALESCE($4, provider_message_id),
+            error_message = $5,
+            updated_at = $6,
+            sent_at = COALESCE($7, sent_at)
+        WHERE id = $1
+      `,
+      [
+        id,
+        patch.status,
+        patch.attemptCount,
+        patch.providerMessageId ?? null,
+        patch.errorMessage ?? null,
+        Date.now(),
+        patch.sentAt ?? null,
+      ]
+    );
+  } catch (error) {
+    throw new NotificationDeliveryStoreError(`Failed to update notification delivery ${id}`, error);
+  }
+}
+
+export async function retryNotificationDelivery(
+  id: string,
+  result: { status: NotificationDeliveryStatus; providerMessageId?: string; errorMessage?: string },
+  newAttemptCount: number
+): Promise<void> {
+  return updateNotificationDelivery(id, {
+    status: result.status,
+    attemptCount: newAttemptCount,
+    providerMessageId: result.providerMessageId,
+    errorMessage: result.errorMessage,
+    sentAt: result.status === 'sent' ? Date.now() : undefined,
+  });
 }
 
 export async function getNotificationDeliveriesForTransaction(
