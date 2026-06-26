@@ -91,3 +91,33 @@ export function validateCurrencyAmount(code: string, amount: number): string | n
   if (amount > config.maxAmount) return `Maximum amount for ${code} is ${config.maxAmount}`;
   return null;
 }
+
+export interface CurrencyInfo {
+  code: string;
+  name: string;
+  symbol: string;
+  flag?: string;
+  minAmount?: number;
+  maxAmount?: number;
+}
+
+/** Returns active currencies as a flat list suitable for GraphQL / REST responses */
+export async function getCurrencies(): Promise<CurrencyInfo[]> {
+  return getActiveCurrencies().map((c) => ({
+    code: c.code,
+    name: c.name,
+    symbol: c.symbol,
+    minAmount: c.minAmount,
+    maxAmount: c.maxAmount,
+  }));
+}
+
+/** Fetches institutions for a currency, checking corridor config first */
+export async function getInstitutions(currency: string): Promise<Array<{ id: string; name: string; code: string }>> {
+  const { getCorridorInstitutions } = await import('./corridor-config');
+  const configInstitutions = getCorridorInstitutions(currency);
+  if (configInstitutions.length > 0) {
+    return configInstitutions;
+  }
+  return [];
+}

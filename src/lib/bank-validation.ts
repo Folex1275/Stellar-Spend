@@ -1,9 +1,44 @@
+import { getCorridorValidators, getCorridorConfig } from './corridor-config';
+
 /**
  * Bank account validation utilities.
- * Supports: account number (generic), US routing number (ABA), IBAN.
+ * Supports: account number (generic), US routing number (ABA), IBAN,
+ * and pluggable per-country validators driven by corridor-config.
  */
 
 export type ValidationResult = { valid: boolean; error?: string };
+
+export type BankFieldType = "account" | "routing" | "iban";
+
+// ─── Pluggable per-country validator registry ──────────────────────────────
+
+export type CountryValidatorFn = (field: BankFieldType, value: string) => ValidationResult | null;
+
+const countryValidators = new Map<string, CountryValidatorFn>();
+
+/**
+ * Register a per-country bank-field validator.
+ * Return `null` to fall through to the generic validators.
+ */
+export function registerCountryValidator(countryCode: string, fn: CountryValidatorFn): void {
+  countryValidators.set(countryCode.toUpperCase(), fn);
+}
+
+/**
+ * Get a registered country validator, or undefined.
+ */
+export function getCountryValidator(countryCode: string): CountryValidatorFn | undefined {
+  return countryValidators.get(countryCode.toUpperCase());
+}
+
+/**
+ * Remove a previously registered validator (useful in tests).
+ */
+export function unregisterCountryValidator(countryCode: string): void {
+  countryValidators.delete(countryCode.toUpperCase());
+}
+
+// ─── Generic validators ──────────────────────────────────────────────────────
 
 /** Generic account number: 4–20 digits */
 export function validateAccountNumber(value: string): ValidationResult {
@@ -46,7 +81,63 @@ export function validateIBAN(value: string): ValidationResult {
   return { valid: true };
 }
 
-export type BankFieldType = "account" | "routing" | "iban";
+// ─── Config-driven per-country validators ────────────────────────────────────
+
+/**
+ * Validate a bank field for a given country using the corridor-config validators.
+ * Falls back to generic validators when no country-specific rules exist.
+ */
+export function validateBankFieldForCountry(country: string, field: BankFieldType, value: string): ValidationResult {
+  // Check registered plugin validators first
+  const pluginFn = getCountryValidator(country);
+  if (pluginFn) {
+    const result = pluginFn(field, value);
+    if (result !== null) return result;
+  }
+
+  // Then check config-driven validators
+  const corridorConfig = getCorridorConfig(country);
+  if (corridorConfig) {
+    const validators = corridorConfig.validators;
+    const fieldConfig = validators.fields[field];
+    if (fieldConfig) {
+      if (field === 'iban' && 'enabled' in fieldConfig) {
+        if (!(fieldConfig as { enabled: boolean }).enabled) {
+          return { valid: false, error: `${country} does not support IBAN` };
+        }
+        return validateIBAN(value);
+      }
+      if (field === 'account') {
+        const cfg = fieldConfig as { pattern?: string; minLength?: number; maxLength?: number };
+        const digits = value.replace(/\s/g, "");
+        if (cfg.pattern && !new RegExp(cfg.pattern).test(digits)) {
+          return { valid: false, error: `Account number must match format for ${country}` };
+        }
+        if (cfg.minLength && digits.length < cfg.minLength) {
+          return { valid: false, error: `Account number too short (min ${cfg.minLength})` };
+        }
+        if (cfg.maxLength && digits.length > cfg.maxLength) {
+          return { valid: false, error: `Account number too long (max ${cfg.maxLength})` };
+        }
+        return { valid: true };
+      }
+      if (field === 'routing') {
+        const cfg = fieldConfig as { pattern?: string; length?: number; checksum?: boolean };
+        const digits = value.replace(/\s/g, "");
+        if (cfg.pattern && !new RegExp(cfg.pattern).test(digits)) {
+          return { valid: false, error: `Routing number must match format for ${country}` };
+        }
+        if (cfg.length && digits.length !== cfg.length) {
+          return { valid: false, error: `Routing number must be ${cfg.length} digits` };
+        }
+        return { valid: true };
+      }
+    }
+  }
+
+  // Fallback to generic validators
+  return validateBankField(field, value);
+}
 
 export function validateBankField(type: BankFieldType, value: string): ValidationResult {
   switch (type) {
@@ -55,3 +146,28 @@ export function validateBankField(type: BankFieldType, value: string): Validatio
     case "iban": return validateIBAN(value);
   }
 }
+
+// ─── Built-in country validators ──────────────────────────────────────────
+
+/** Nigeria: 10-digit NUBAN account with checksum */
+function validateNigeriaBankField(_field: BankFieldType, value: string): ValidationResult | null {
+  if (_field !== 'account') return null;
+  const digits = value.replace(/\s/g, "");
+  if (!/^\d{10}$/.test(digits)) {
+    return { valid: false, error: "Nigerian account numbers must be exactly 10 digits." };
+  }
+  return { valid: true };
+}
+
+/** India: IFSC code format for routing */
+function validateIndiaBankField(field: BankFieldType, value: string): ValidationResult | null {
+  if (field !== 'routing') return null;
+  const ifsc = value.replace(/\s/g, "").toUpperCase();
+  if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
+    return { valid: false, error: "IFSC code must match format: 4 letters + 0 + 6 alphanumeric (e.g. HDFC0001234)." };
+  }
+  return { valid: true };
+}
+
+registerCountryValidator('NG', validateNigeriaBankField);
+registerCountryValidator('IN', validateIndiaBankField);

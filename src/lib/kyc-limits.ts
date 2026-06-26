@@ -83,6 +83,27 @@ const TIER_LIMITS: Record<LimitTier, TransactionLimit> = {
   tier3: { dailyLimit: 50000, monthlyLimit: 500000, transactionLimit: 25000 },
 };
 
+/** Apply per-corridor KYC limit overrides on top of the global defaults */
+function applyCorridorOverrides(tier: LimitTier, currency?: string): TransactionLimit {
+  const base = TIER_LIMITS[tier];
+  if (!currency) return base;
+
+  try {
+    const { getCorridorKycDefaults } = require('./corridor-config');
+    const defaults = getCorridorKycDefaults(currency.toUpperCase());
+    if (defaults?.tierOverrides?.[tier]) {
+      const override = defaults.tierOverrides[tier]!;
+      return {
+        dailyLimit: override.dailyLimit ?? base.dailyLimit,
+        monthlyLimit: override.monthlyLimit ?? base.monthlyLimit,
+        transactionLimit: override.transactionLimit ?? base.transactionLimit,
+      };
+    }
+  } catch {}
+
+  return base;
+}
+
 export class KYCLimitService {
   private static readonly KYC_STORAGE_KEY = 'stellar_spend_kyc';
   private static readonly LIMITS_STORAGE_KEY = 'stellar_spend_limits';
@@ -159,11 +180,11 @@ export class KYCLimitService {
     return limitsMap[userId] || null;
   }
 
-  static canTransact(userId: string, amount: number): { allowed: boolean; reason?: string } {
+  static canTransact(userId: string, amount: number, currency?: string): { allowed: boolean; reason?: string } {
     const limits = this.getUserLimits(userId);
     if (!limits) return { allowed: false, reason: 'User limits not initialized' };
 
-    const tierLimit = TIER_LIMITS[limits.tier];
+    const tierLimit = applyCorridorOverrides(limits.tier, currency);
     const now = Date.now();
 
     // Reset if needed

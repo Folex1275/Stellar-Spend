@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { env } from '@/lib/env';
+import { getCorridorInstitutions, getCorridorConfig } from '@/lib/corridor-config';
 
 export const maxDuration = 10;
 
@@ -50,6 +51,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ currenc
     return NextResponse.json(institutions);
   } catch (err: unknown) {
     console.error('Error fetching institutions from Paycrest:', err);
+
+    // Fallback to corridor-config institutions when Paycrest is unreachable
+    const corridorConfig = getCorridorConfig(currency);
+    if (corridorConfig && corridorConfig.institutions.length > 0) {
+      const fallback = corridorConfig.institutions.map((inst) => ({
+        id: inst.id,
+        name: inst.name,
+        code: inst.code,
+        type: inst.type,
+      }));
+      return NextResponse.json(fallback);
+    }
 
     if (err instanceof Error && 'status' in err) {
       const httpError = err as PaycrestHttpError;
