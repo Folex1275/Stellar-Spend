@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { disputeRepository } from '@/lib/repositories/dispute-repository';
-import { DisputeUpdate } from '@/types/disputes';
+import { DisputeStatus, DisputeUpdate } from '@/types/disputes';
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(req.nextUrl.searchParams.get('limit') || '50');
     const offset = parseInt(req.nextUrl.searchParams.get('offset') || '0');
 
-    const disputes = await disputeRepository.listDisputes(status || undefined, limit, offset);
+    const disputes = await disputeRepository.listDisputes((status || undefined) as DisputeStatus | undefined, limit, offset);
 
     return NextResponse.json(disputes);
   } catch (error) {

@@ -3,5 +3,5 @@ import { GET as baseGET } from '@/app/api/fx-rates/route';
 import { withApiKeyAuth } from '@/lib/api-keys/auth';
 
 export async function GET(request: NextRequest) {
-  return withApiKeyAuth(request, async () => baseGET(request));
+  return withApiKeyAuth(request, async () => baseGET());
 }

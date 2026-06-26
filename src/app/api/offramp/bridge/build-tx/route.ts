@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
   try {
     // Check rate limit
-    const rateLimitCheck = buildTxLimiter.check(clientIp);
+    const rateLimitCheck = await buildTxLimiter.check(clientIp);
     if (!rateLimitCheck.allowed) {
       logger.logError(429, 'Rate limit exceeded');
       return NextResponse.json(

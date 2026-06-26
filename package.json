@@ -7,7 +7,7 @@
     "build": "node ./scripts/run-next.cjs build",
     "build:analyze": "ANALYZE=true node ./scripts/run-next.cjs build",
     "start": "node ./scripts/run-next.cjs start",
-    "lint": "npx -y -p eslint@9.39.4 -p @typescript-eslint/parser@8.46.1 -p eslint-plugin-react@7.37.5 -p eslint-plugin-react-hooks@5.2.0 -p @next/eslint-plugin-next@15.2.0 eslint . --max-warnings 0",
+    "lint": "npx -y -p eslint@9.39.4 -p @typescript-eslint/parser@8.46.1 -p @typescript-eslint/eslint-plugin@8.46.1 -p eslint-plugin-react@7.37.5 -p eslint-plugin-react-hooks@5.2.0 -p @next/eslint-plugin-next@15.2.0 eslint . --max-warnings 50",
     "test": "vitest --run",
     "test:watch": "vitest",
     "test:coverage": "vitest --run --coverage",

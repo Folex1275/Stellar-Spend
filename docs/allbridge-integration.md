@@ -273,6 +273,55 @@ The module-level singleton and caches persist for the lifetime of the server pro
 
 ---
 
+## 6. Adapter Pattern
+
+Allbridge is implemented as a **concrete adapter** conforming to `BridgeProviderAdapter`:
+
+```ts
+// src/lib/offramp/adapters/bridge-provider.ts
+export interface BridgeProviderAdapter {
+  getQuote(request): Promise<Quote>;
+  buildSendTx(request): Promise<unknown>;
+  getTransferStatus(transferId): Promise<Status>;
+  getAverageTransferTime(src, dst): number;
+  getHealth(): Promise<{ ok: boolean; latencyMs: number; error?: string }>;
+}
+```
+
+The `allbridge-adapter.ts` module exports stateless functions rather than a class (the SDK is a module-level singleton), but it conforms to the same contract via wrapper functions in the route handlers.
+
+### Provider Registry
+
+The `BridgeProviderRegistry` (in `src/lib/offramp/adapters/provider-registry.ts`) manages all bridge and payout providers:
+
+```ts
+import { providerRegistry } from '@/lib/offramp/adapters/provider-registry';
+
+// Register providers
+providerRegistry.registerBridge('allbridge', allbridgeAdapter);
+
+// Get eligible providers for a corridor
+const bridges = providerRegistry.getEligibleBridges('stellar→base');
+
+// Check health
+const health = await providerRegistry.checkBridgeHealth('allbridge');
+```
+
+### Per-Corridor Routing
+
+```ts
+providerRegistry.configureRoutes([
+  {
+    corridor: 'stellar→base',
+    sourceChain: 'stellar',
+    destinationChain: 'base',
+    token: 'USDC',
+    bridgeProvider: 'allbridge',
+    priority: 1,
+  },
+]);
+```
+
 ## Running Tests
 
 ```bash
