@@ -7,3 +7,5 @@ export type { RequestLogEntry } from './request-logging.middleware';
 export { composeMiddleware } from './compose';
 
 export { ERROR_CODES, ERROR_MESSAGES, getStatusCode } from './error-codes';
+
+export { enforceScope } from './scope-enforcement.middleware';

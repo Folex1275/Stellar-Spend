@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ErrorHandler } from '@/lib/error-handler';
 import { createApiKey, listApiKeys } from '@/lib/api-keys/service';
 import { requireApiKeyAdmin } from '@/app/api/api-keys/_utils';
+import { SCOPE_CATALOG, type Scope } from '@/lib/api-keys/scopes';
 
 export async function GET(request: NextRequest) {
   const unauthorized = requireApiKeyAdmin(request);
@@ -44,9 +45,24 @@ export async function POST(request: NextRequest) {
     return ErrorHandler.validation('rateLimitWindowMs must be a positive number');
   }
 
+  let scopes: Scope[] | undefined;
+  if (body.scopes !== undefined) {
+    if (!Array.isArray(body.scopes)) {
+      return ErrorHandler.validation('scopes must be an array');
+    }
+    const validScopeKeys = Object.keys(SCOPE_CATALOG) as Scope[];
+    for (const s of body.scopes) {
+      if (!validScopeKeys.includes(s as Scope)) {
+        return ErrorHandler.validation(`Invalid scope: "${s}". Valid scopes: ${validScopeKeys.join(', ')}`);
+      }
+    }
+    scopes = body.scopes as Scope[];
+  }
+
   try {
     const apiKey = await createApiKey({
       name: body.name,
+      scopes,
       rateLimitMaxRequests:
         typeof body.rateLimitMaxRequests === 'number' ? body.rateLimitMaxRequests : undefined,
       rateLimitWindowMs:

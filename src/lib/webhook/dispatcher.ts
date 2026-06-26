@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import type { DeliveryRecord, DeliveryAttempt, WebhookPayload } from "./types";
 import { createRecord, updateRecord } from "./delivery-store";
 import { getWebhookConfig } from "./config";
+import { buildSignedWebhookHeaders } from "./security";
 
 export interface DeliveryAttemptResult {
     success: boolean;
@@ -23,10 +24,30 @@ export async function enqueue(
 }
 
 /**
+ * Build signed headers for outgoing webhook delivery using the provided secret.
+ * Falls back to unsigned if no secret is provided.
+ */
+export async function buildOutgoingHeaders(
+    payloadBody: string,
+    signingSecret?: string
+): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+    };
+
+    if (signingSecret) {
+        const signed = await buildSignedWebhookHeaders(payloadBody, signingSecret);
+        Object.assign(headers, signed);
+    }
+
+    return headers;
+}
+
+/**
  * Execute a single delivery attempt for the given record.
  * Performs an HTTP POST, records the outcome, and updates the record in the store.
  */
-export async function attempt(record: DeliveryRecord): Promise<DeliveryAttemptResult> {
+export async function attempt(record: DeliveryRecord, signingSecret?: string): Promise<DeliveryAttemptResult> {
     const attemptNumber = record.attemptCount + 1;
     const startTime = Date.now();
     let httpStatus: number | undefined;
@@ -35,10 +56,11 @@ export async function attempt(record: DeliveryRecord): Promise<DeliveryAttemptRe
     let retryable = false;
 
     try {
+        const deliveryHeaders = await buildOutgoingHeaders(record.payload.body, signingSecret);
         const response = await fetch(record.destinationUrl, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
+                ...deliveryHeaders,
                 ...record.payload.headers,
             },
             body: record.payload.body,
