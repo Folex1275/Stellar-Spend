@@ -11,6 +11,7 @@ const LANGUAGE_LABELS: Record<Language, string> = {
   zh: '中文',
   ar: 'AR',
   pt: 'PT',
+  sw: 'SW',
 };
 
 export function LanguageSelector() {

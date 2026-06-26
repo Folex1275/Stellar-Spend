@@ -1,5 +1,4 @@
 const CACHE_NAME = "stellar-spend-v1";
-const STATIC_ASSETS = ["/", "/manifest.json", "/icons/icon-192x192.png", "/icons/icon-512x512.png", "/offline.html"];
 const OFFLINE_FALLBACK = "/offline.html";
 
 const STATIC_ASSETS = [
@@ -8,6 +7,7 @@ const STATIC_ASSETS = [
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png",
   "/icons/apple-touch-icon.png",
+  "/offline.html",
 ];
 
 // Install event - cache static assets
@@ -30,10 +30,7 @@ self.addEventListener("activate", (event) => {
       return Promise.all(
         keys
           .filter((key) => {
-            return (
-              !Object.values(CACHE_NAMES).includes(key) &&
-              key.startsWith("stellar-spend-")
-            );
+            return key !== CACHE_NAME && key.startsWith("stellar-spend-");
           })
           .map((key) => caches.delete(key))
       );
@@ -69,7 +66,7 @@ self.addEventListener("fetch", (event) => {
       return cached ?? networkFetch;
     })
   );
-}
+});
 
 // Handle messages from clients
 self.addEventListener("message", (event) => {

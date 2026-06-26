@@ -1,4 +1,4 @@
-export type Language = "en" | "es" | "fr" | "zh" | "ar" | "pt";
+export type Language = "en" | "es" | "fr" | "zh" | "ar" | "pt" | "sw";
 
 export interface TranslationKeys {
   common: {
@@ -118,5 +118,22 @@ export interface TranslationKeys {
     email_notifications: string;
     push_notifications: string;
     sync_account: string;
+  };
+  receipt: {
+    title: string;
+    date: string;
+    txHash: string;
+    orderId: string;
+    provider: string;
+    exchangeRate: string;
+    bridgeFee: string;
+    payoutFee: string;
+    bank: string;
+    account: string;
+    print: string;
+    share: string;
+    viewExplorer: string;
+    showQr: string;
+    hideQr: string;
   };
 }

@@ -229,6 +229,7 @@ export default function SettingsPage() {
                       <option value="zh">中文</option>
                       <option value="pt">Português</option>
                       <option value="ar">العربية</option>
+                      <option value="sw">Kiswahili</option>
                     </select>
                   </div>
 

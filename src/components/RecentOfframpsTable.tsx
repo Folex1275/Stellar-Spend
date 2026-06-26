@@ -7,8 +7,7 @@ import { getCurrencyFlag } from "@/lib/currency-flags";
 import { TransactionTableSkeleton } from "./skeletons";
 import { StatusBadge } from "./StatusBadge";
 import { EmptyState } from "./EmptyState";
-import VirtualList from "./VirtualList";
-import { useCallback, useState } from "react";
+import { DataTable, type DataTableColumn } from "./DataTable";
 
 // ---------------------------------------------------------------------------
 // Mock data — replaced by real TransactionStorage rows when wired up
@@ -119,46 +118,54 @@ export default function RecentOfframpsTable({
     return <TransactionTableSkeleton rows={3} />;
   }
 
-  if (rows.length === 0) {
-    return (
-      <div
-        data-testid="RecentOfframpsTable"
-        className="border border-[#333333] bg-[#111111]"
-        role="region"
-        aria-label="Recent offramp transactions"
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#333333]">
-          <span className="text-[10px] tracking-[0.2em] text-[#777777] uppercase">
-            Recent Offramps
-          </span>
+  const columns: DataTableColumn<RecentOfframpRow>[] = [
+    {
+      key: "txHash",
+      header: "TX HASH",
+      width: "1.5fr",
+      accessor: (row) => (
+        <div className="flex items-center gap-2 font-mono text-[#777777]">
           <a
-            href="/history"
-            className={cn(
-              "text-[10px] tracking-widest uppercase text-[#c9a962] border border-[#c9a962] px-3 py-1 min-h-[44px] flex items-center",
-              "hover:bg-[#c9a962] hover:text-[#0a0a0a] transition-colors duration-150",
-              "focus:outline-none focus-visible:ring-1 focus-visible:ring-[#c9a962]"
-            )}
-            aria-label="View all offramp transactions"
+            href={`https://stellar.expert/explorer/public/tx/${row.txHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-[#c9a962] transition-colors duration-150 underline decoration-dotted"
           >
-            View All
+            {truncateTxHash(row.txHash)}
           </a>
+          <CopyButton text={row.txHash} label="" className="text-[10px]" />
         </div>
-        <EmptyState
-          icon={
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
-            </svg>
-          }
-          title="No transactions yet"
-          description="Start by converting your Stellar stablecoins to fiat currency"
-          action={{
-            label: "Get Started",
-            onClick: () => window.scrollTo({ top: 0, behavior: "smooth" }),
-          }}
-        />
-      </div>
-    );
-  }
+      ),
+    },
+    {
+      key: "usdc",
+      header: "USDC",
+      sortValue: (row) => parseFloat(row.usdc),
+      accessor: (row) => <span className="tabular-nums">{row.usdc} USDC</span>,
+    },
+    {
+      key: "fiat",
+      header: getCurrencyColumnHeader(rows),
+      accessor: (row) => (
+        <span className="tabular-nums">
+          {row.fiat}{" "}
+          <span className="text-[#777777]">
+            {getCurrencyFlag(row.currency) && (
+              <span aria-label={row.currency} title={row.currency} className="ml-1">
+                {getCurrencyFlag(row.currency)}
+              </span>
+            )}
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      header: "STATUS",
+      sortValue: (row) => row.status,
+      accessor: (row) => <StatusBadge status={row.status} />,
+    },
+  ];
 
   const renderRow = useCallback((row: RecentOfframpRow, index: number, isFocused: boolean) => (
     <table className="w-full" role="presentation">
@@ -193,65 +200,27 @@ export default function RecentOfframpsTable({
         </a>
       </div>
 
-      {/* Table - virtualized or regular */}
-      <div className="overflow-x-auto">
-        {useVirtualization ? (
-          <div className="border-collapse">
-            {/* Header */}
-            <table className="w-full min-w-[520px] border-collapse" aria-label="Recent offramp transactions table header">
-              <thead>
-                <tr className="bg-[#c9a962] sticky top-0 z-10">
-                  {["TX HASH", "USDC", getCurrencyColumnHeader(rows), "STATUS"].map((col) => (
-                    <th
-                      key={col}
-                      scope="col"
-                      className="px-5 py-2.5 text-left text-[10px] tracking-[0.18em] font-semibold text-[#0a0a0a] uppercase whitespace-nowrap"
-                    >
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-            </table>
-
-            {/* Virtualized body */}
-            <VirtualList
-              items={rows}
-              itemHeight={48} // Approximate row height
-              containerHeight={Math.min(rows.length * 48, 400)} // Max 400px
-              renderItem={renderRow}
-              className="min-w-[520px]"
-              onFocusChange={setFocusedRowIndex}
-              role="presentation"
-              ariaLabel="Virtualized transaction rows"
-            />
-          </div>
-        ) : (
-          <table className="w-full min-w-[520px] border-collapse" aria-label="Recent offramp transactions table">
-            {/* Gold header row */}
-            <thead>
-              <tr className="bg-[#c9a962]">
-                {["TX HASH", "USDC", getCurrencyColumnHeader(rows), "STATUS"].map((col) => (
-                  <th
-                    key={col}
-                    scope="col"
-                    className="px-5 py-2.5 text-left text-[10px] tracking-[0.18em] font-semibold text-[#0a0a0a] uppercase whitespace-nowrap"
-                  >
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-
-            <tbody>
-              {rows.map((row, i) => (
-                <TableRow key={row.txHash} row={row} index={i} />
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        getRowKey={(row) => row.txHash}
+        caption="Recent offramp transactions table"
+        emptyState={
+          <EmptyState
+            icon={
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
+              </svg>
+            }
+            title="No transactions yet"
+            description="Start by converting your Stellar stablecoins to fiat currency"
+            action={{
+              label: "Get Started",
+              onClick: () => window.scrollTo({ top: 0, behavior: "smooth" }),
+            }}
+          />
+        }
+      />
     </div>
   );
 }
-
