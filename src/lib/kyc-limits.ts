@@ -77,11 +77,75 @@ export interface LimitIncreaseRequest {
   reviewedAt?: number;
 }
 
+export interface KYCAuditEvent {
+  id: string;
+  userId: string;
+  eventType: 'kyc_submitted' | 'kyc_verified' | 'kyc_rejected' | 'kyc_expired' | 'tier_changed' | 'limit_increase_requested' | 'limit_increase_approved' | 'limit_increase_rejected' | 'reverification_triggered' | 'provider_verified';
+  timestamp: number;
+  details?: Record<string, unknown>;
+}
+
+const AUDIT_TRAIL_KEY = 'stellar_spend_kyc_audit';
+
 const TIER_LIMITS: Record<LimitTier, TransactionLimit> = {
   tier1: { dailyLimit: 1000, monthlyLimit: 10000, transactionLimit: 500 },
   tier2: { dailyLimit: 5000, monthlyLimit: 50000, transactionLimit: 2500 },
   tier3: { dailyLimit: 50000, monthlyLimit: 500000, transactionLimit: 25000 },
 };
+
+let _corridorOverridesCache: Record<string, Record<string, { dailyLimit: number; monthlyLimit: number; transactionLimit: number }>> | undefined;
+
+function loadCorridorOverrides(): void {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('stellar_spend_corridor_overrides');
+      if (stored) {
+        _corridorOverridesCache = JSON.parse(stored);
+        return;
+      }
+    } catch {}
+  }
+  // Default corridor overrides (loaded from corridor-config on server)
+  _corridorOverridesCache = {
+    NGN: {
+      tier2: { dailyLimit: 10000, monthlyLimit: 100000, transactionLimit: 5000 },
+    },
+  };
+}
+
+/** Apply per-corridor KYC limit overrides on top of the global defaults */
+function applyCorridorOverrides(tier: LimitTier, currency?: string): TransactionLimit {
+  const base = TIER_LIMITS[tier];
+  if (!currency) return base;
+
+  if (!_corridorOverridesCache) {
+    loadCorridorOverrides();
+  }
+
+  const overrides = _corridorOverridesCache?.[currency.toUpperCase()]?.[tier];
+  if (overrides) {
+    return {
+      dailyLimit: overrides.dailyLimit ?? base.dailyLimit,
+      monthlyLimit: overrides.monthlyLimit ?? base.monthlyLimit,
+      transactionLimit: overrides.transactionLimit ?? base.transactionLimit,
+    };
+  }
+
+  return base;
+}
+
+/**
+ * Set corridor-specific KYC overrides at runtime.
+ * Called by the server on startup to sync corridor-config into KYC limits.
+ */
+export function setCorridorOverrides(overrides: Record<string, Record<string, { dailyLimit: number; monthlyLimit: number; transactionLimit: number }>>): void {
+  _corridorOverridesCache = overrides;
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('stellar_spend_corridor_overrides', JSON.stringify(overrides));
+    } catch {}
+  }
+}
 
 export class KYCLimitService {
   private static readonly KYC_STORAGE_KEY = 'stellar_spend_kyc';
@@ -99,6 +163,8 @@ export class KYCLimitService {
     const kycMap = this.getAllKYC();
     kycMap[userId] = kyc;
     this.persistKYC(kycMap);
+
+    this.recordAuditEvent({ userId, eventType: 'kyc_submitted', details: { documentType, documentId } });
     return kyc;
   }
 
@@ -118,6 +184,8 @@ export class KYCLimitService {
     kycMap[userId] = kyc;
     this.persistKYC(kycMap);
 
+    this.recordAuditEvent({ userId, eventType: 'kyc_verified', details: { previousStatus: kyc.status } });
+
     // Upgrade to tier2 on verification
     this.initializeUserLimits(userId, 'tier2');
     return kyc;
@@ -133,6 +201,8 @@ export class KYCLimitService {
     const kycMap = this.getAllKYC();
     kycMap[userId] = kyc;
     this.persistKYC(kycMap);
+
+    this.recordAuditEvent({ userId, eventType: 'kyc_rejected', details: { reason } });
     return kyc;
   }
 
@@ -159,11 +229,11 @@ export class KYCLimitService {
     return limitsMap[userId] || null;
   }
 
-  static canTransact(userId: string, amount: number): { allowed: boolean; reason?: string } {
+  static canTransact(userId: string, amount: number, currency?: string): { allowed: boolean; reason?: string } {
     const limits = this.getUserLimits(userId);
     if (!limits) return { allowed: false, reason: 'User limits not initialized' };
 
-    const tierLimit = TIER_LIMITS[limits.tier];
+    const tierLimit = applyCorridorOverrides(limits.tier, currency);
     const now = Date.now();
 
     // Reset if needed
@@ -218,6 +288,12 @@ export class KYCLimitService {
       this.persistLimits(limitsMap);
     }
 
+    this.recordAuditEvent({
+      userId,
+      eventType: 'limit_increase_requested',
+      details: { requestedTier },
+    });
+
     return request;
   }
 
@@ -235,6 +311,13 @@ export class KYCLimitService {
     const limitsMap = this.getAllLimits();
     limitsMap[userId] = limits;
     this.persistLimits(limitsMap);
+
+    this.recordAuditEvent({
+      userId,
+      eventType: 'limit_increase_approved',
+      details: { requestId, requestedTier: request.requestedTier },
+    });
+
     return true;
   }
 
@@ -350,6 +433,64 @@ export class KYCLimitService {
       totalTransactionVolume,
       flaggedTransactions: amlResults.filter((r) => r.flags.length > 0).length,
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Audit trail
+  // ---------------------------------------------------------------------------
+
+  static recordAuditEvent(event: Omit<KYCAuditEvent, 'id' | 'timestamp'>): KYCAuditEvent {
+    const auditEvent: KYCAuditEvent = {
+      ...event,
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+    } as KYCAuditEvent;
+
+    const trail = this.getAuditTrail(event.userId);
+    trail.push(auditEvent);
+    if (typeof window !== 'undefined') {
+      const all = JSON.parse(localStorage.getItem(AUDIT_TRAIL_KEY) || '{}');
+      all[event.userId] = trail;
+      localStorage.setItem(AUDIT_TRAIL_KEY, JSON.stringify(all));
+    }
+    return auditEvent;
+  }
+
+  static getAuditTrail(userId: string): KYCAuditEvent[] {
+    if (typeof window === 'undefined') return [];
+    const all = JSON.parse(localStorage.getItem(AUDIT_TRAIL_KEY) || '{}');
+    return all[userId] || [];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Re-verification triggers
+  // ---------------------------------------------------------------------------
+
+  static checkReverificationNeeded(userId: string): { needed: boolean; reason?: string } {
+    const kyc = this.getKYC(userId);
+    if (!kyc || kyc.status !== 'verified') {
+      return { needed: false, reason: 'Not verified yet' };
+    }
+
+    const limits = this.getUserLimits(userId);
+    if (!limits) return { needed: false };
+
+    if (kyc.verifiedAt && limits.tier === 'tier3') {
+      const oneYearAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
+      if (kyc.verifiedAt < oneYearAgo) {
+        return { needed: true, reason: 'KYC older than 1 year — re-verification required for tier3' };
+      }
+    }
+
+    return { needed: false };
+  }
+
+  static triggerReverification(userId: string, reason: string): void {
+    this.recordAuditEvent({
+      userId,
+      eventType: 'reverification_triggered',
+      details: { reason },
+    });
   }
 
   // ---------------------------------------------------------------------------
