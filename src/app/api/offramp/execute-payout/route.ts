@@ -6,6 +6,7 @@ import { calculateAllFees } from '@/lib/fee-calculation';
 import { withIdempotency } from '@/lib/idempotency';
 import { KYCLimitService } from '@/lib/kyc-limits';
 import { isSupportedCurrency } from '@/lib/currencies';
+import { screenAddress, isHighValue } from '@/lib/compliance-screening';
 
 type FeeMethodInput = 'USDC' | 'XLM' | 'stablecoin' | 'native';
 
@@ -55,6 +56,33 @@ export async function POST(request: NextRequest) {
     const numericAmount = parseFloat(amount);
     if (isNaN(numericAmount) || numericAmount <= 0) {
       return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
+    }
+
+    // Compliance screening on source address and beneficiary account
+    const sourceScreen = await screenAddress(
+      { address: userAddress, addressType: 'stellar', amount: numericAmount, currency },
+      { failClosed: isHighValue(numericAmount) },
+    );
+    if (sourceScreen.verdict === 'deny') {
+      return NextResponse.json(
+        { error: 'Source address blocked by compliance', screening: sourceScreen },
+        { status: 403 },
+      );
+    }
+
+    if (beneficiary?.accountIdentifier) {
+      const beneficiaryScreen = await screenAddress({
+        address: beneficiary.accountIdentifier,
+        addressType: 'bank',
+        amount: numericAmount,
+        currency,
+      });
+      if (beneficiaryScreen.verdict === 'deny') {
+        return NextResponse.json(
+          { error: 'Beneficiary account blocked by compliance', screening: beneficiaryScreen },
+          { status: 403 },
+        );
+      }
     }
 
     const canTransact = KYCLimitService.canTransact(userAddress, numericAmount, currency);

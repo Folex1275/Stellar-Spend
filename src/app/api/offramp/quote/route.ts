@@ -5,6 +5,7 @@ import { fetchPaycrestQuote, buildQuote, calculateBridgeAmount } from '@/lib/off
 import { ErrorHandler } from '@/lib/error-handler';
 import { withAllbridgeTimeout } from '@/lib/offramp/utils/timeout';
 import { isSupportedCurrency } from '@/lib/currencies';
+import { screenAddress } from '@/lib/compliance-screening';
 
 export const maxDuration = 20;
 
@@ -21,7 +22,22 @@ const FEE_METHOD_MAP: Record<string, 'stablecoin' | 'native'> = {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { amount, currency, feeMethod } = body;
+    const { amount, currency, feeMethod, sourceAddress } = body;
+
+    if (sourceAddress) {
+      const screeningResult = await screenAddress({
+        address: sourceAddress,
+        addressType: 'stellar',
+        amount: parseFloat(amount),
+        currency,
+      });
+      if (screeningResult.verdict === 'deny') {
+        return NextResponse.json(
+          { error: 'Source address blocked by compliance screening', screening: screeningResult },
+          { status: 403 },
+        );
+      }
+    }
 
     if (!validateAmount(String(amount ?? ''))) {
       return NextResponse.json(
