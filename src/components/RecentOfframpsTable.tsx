@@ -26,6 +26,7 @@ const MOCK_ROWS: RecentOfframpRow[] = [
 export interface RecentOfframpsTableProps {
   rows?: ReadonlyArray<RecentOfframpRow>;
   isLoading?: boolean;
+  useVirtualization?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -45,10 +46,74 @@ function getCurrencyColumnHeader(rows: ReadonlyArray<RecentOfframpRow>): string 
 }
 
 // ---------------------------------------------------------------------------
+// Row Component (used by both regular and virtual renderers)
+// ---------------------------------------------------------------------------
+
+interface TableRowProps {
+  row: RecentOfframpRow;
+  index: number;
+  isFocused?: boolean;
+  rowClassName?: string;
+}
+
+function TableRow({ row, index, isFocused, rowClassName }: TableRowProps) {
+  return (
+    <tr
+      className={cn(
+        "border-b border-[#222222] transition-colors duration-100",
+        index % 2 === 0 ? "bg-[#111111]" : "bg-[#0f0f0f]",
+        "hover:bg-[#1a1a1a]",
+        isFocused && "ring-1 ring-[#c9a962]",
+        rowClassName,
+      )}
+      role="row"
+      tabIndex={isFocused ? 0 : -1}
+    >
+      <td className="px-5 py-3 text-xs text-[#777777] font-mono whitespace-nowrap">
+        <div className="flex items-center gap-2">
+          <a
+            href={`https://stellar.expert/explorer/public/tx/${row.txHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-[#c9a962] transition-colors duration-150 underline decoration-dotted"
+          >
+            {truncateTxHash(row.txHash)}
+          </a>
+          <CopyButton text={row.txHash} label="" className="text-[10px]" />
+        </div>
+      </td>
+      <td className="px-5 py-3 text-xs text-white tabular-nums whitespace-nowrap">
+        {row.usdc} USDC
+      </td>
+      <td className="px-5 py-3 text-xs text-white tabular-nums whitespace-nowrap">
+        {row.fiat}
+        {" "}
+        <span className="text-[#777777]">
+          {getCurrencyFlag(row.currency) && (
+            <span aria-label={row.currency} title={row.currency} className="ml-1">
+              {getCurrencyFlag(row.currency)}
+            </span>
+          )}
+        </span>
+      </td>
+      <td className="px-5 py-3 whitespace-nowrap">
+        <StatusBadge status={row.status} />
+      </td>
+    </tr>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export default function RecentOfframpsTable({ rows = MOCK_ROWS, isLoading }: RecentOfframpsTableProps) {
+export default function RecentOfframpsTable({ 
+  rows = MOCK_ROWS, 
+  isLoading,
+  useVirtualization = rows && rows.length > 50, // Enable virtualiz for 50+ rows
+}: RecentOfframpsTableProps) {
+  const [focusedRowIndex, setFocusedRowIndex] = useState<number | null>(null);
+
   if (isLoading) {
     return <TransactionTableSkeleton rows={3} />;
   }
@@ -101,6 +166,14 @@ export default function RecentOfframpsTable({ rows = MOCK_ROWS, isLoading }: Rec
       accessor: (row) => <StatusBadge status={row.status} />,
     },
   ];
+
+  const renderRow = useCallback((row: RecentOfframpRow, index: number, isFocused: boolean) => (
+    <table className="w-full" role="presentation">
+      <tbody>
+        <TableRow row={row} index={index} isFocused={isFocused} />
+      </tbody>
+    </table>
+  ), []);
 
   return (
     <div

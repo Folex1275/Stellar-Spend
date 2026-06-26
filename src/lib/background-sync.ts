@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import type { Transaction } from "./transaction-storage";
+import { SyncStorage } from "./sync-storage";
+import { syncTransactionHistory, getSyncStatus } from "./transaction-sync-client";
 
 interface FailedTransaction extends Transaction {
   retryCount?: number;
@@ -10,6 +12,7 @@ interface FailedTransaction extends Transaction {
 
 const DB_NAME = "stellar-spend";
 const STORE_NAME = "failed-transactions";
+const SYNC_STORE_NAME = "transaction-sync-queue";
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -25,9 +28,24 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
+export interface SyncStatus {
+  enabled: boolean;
+  lastSyncAt: number;
+  isPending: boolean;
+  conflictCount: number;
+  syncing: boolean;
+}
+
 export function useBackgroundSync() {
   const [isSupported, setIsSupported] = useState(false);
   const [failedTransactions, setFailedTransactions] = useState<FailedTransaction[]>([]);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({
+    enabled: false,
+    lastSyncAt: 0,
+    isPending: false,
+    conflictCount: 0,
+    syncing: false,
+  });
 
   const loadFailedTransactions = useCallback(async () => {
     try {
@@ -44,14 +62,27 @@ export function useBackgroundSync() {
     }
   }, []);
 
+  const updateSyncStatus = useCallback(() => {
+    const status = getSyncStatus();
+    setSyncStatus(prev => ({
+      ...prev,
+      ...status,
+    }));
+  }, []);
+
   useEffect(() => {
     const supported = "serviceWorker" in navigator && "SyncManager" in window;
     setIsSupported(supported);
 
     if (supported) {
       loadFailedTransactions();
+      updateSyncStatus();
+      
+      // Update sync status every 5 seconds
+      const interval = setInterval(updateSyncStatus, 5000);
+      return () => clearInterval(interval);
     }
-  }, [loadFailedTransactions]);
+  }, [loadFailedTransactions, updateSyncStatus]);
 
   const addFailedTransaction = async (tx: Transaction) => {
     if (!isSupported) return;
@@ -111,6 +142,27 @@ export function useBackgroundSync() {
     }
   };
 
+  const triggerHistorySync = async (userAddress: string, localTransactions: Transaction[]) => {
+    setSyncStatus(prev => ({ ...prev, syncing: true }));
+    try {
+      const result = await syncTransactionHistory(localTransactions, {
+        userAddress,
+      });
+
+      if (result) {
+        console.log(`Synced ${result.synced.length} transactions`);
+        if (result.conflicts.length > 0) {
+          console.warn(`${result.conflicts.length} conflicts detected`);
+        }
+      }
+    } catch (err) {
+      console.error("Error syncing history:", err);
+    } finally {
+      setSyncStatus(prev => ({ ...prev, syncing: false }));
+      updateSyncStatus();
+    }
+  };
+
   return {
     isSupported,
     failedTransactions,
@@ -118,5 +170,8 @@ export function useBackgroundSync() {
     removeFailedTransaction,
     retryFailedTransaction,
     loadFailedTransactions,
+    syncStatus,
+    updateSyncStatus,
+    triggerHistorySync,
   };
 }
