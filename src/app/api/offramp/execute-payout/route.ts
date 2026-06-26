@@ -4,6 +4,8 @@ import { dal } from '@/lib/db/dal';
 import type { Transaction } from '@/lib/transaction-storage';
 import { calculateAllFees } from '@/lib/fee-calculation';
 import { withIdempotency } from '@/lib/idempotency';
+import { KYCLimitService } from '@/lib/kyc-limits';
+import { isSupportedCurrency } from '@/lib/currencies';
 
 type FeeMethodInput = 'USDC' | 'XLM' | 'stablecoin' | 'native';
 
@@ -45,6 +47,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'missing required fields' }, { status: 400 });
     }
 
+    if (!isSupportedCurrency(currency)) {
+      return NextResponse.json({ error: `Unsupported currency: ${currency}` }, { status: 400 });
+    }
+
+    // Server-side KYC limit enforcement
+    const numericAmount = parseFloat(amount);
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
+    }
+
+    const canTransact = KYCLimitService.canTransact(userAddress, numericAmount, currency);
+    if (!canTransact.allowed) {
+      return NextResponse.json({ error: `Transaction blocked: ${canTransact.reason}` }, { status: 403 });
+    }
+
     const feeMethod = normalizeFeeMethod(body.feeMethod);
     const feeBreakdown = feeMethod
       ? await calculateAllFees({ amount, currency, feeMethod, receiveAmount })
@@ -71,6 +88,9 @@ export async function POST(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'internal server error' }, { status: 500 });
     }
+
+    // Record the transaction for KYC limit tracking
+    KYCLimitService.recordTransaction(userAddress, numericAmount);
 
     return NextResponse.json({ id, status: 'pending' }, { status: 200 });
   });

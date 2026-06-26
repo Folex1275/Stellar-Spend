@@ -77,6 +77,16 @@ export interface LimitIncreaseRequest {
   reviewedAt?: number;
 }
 
+export interface KYCAuditEvent {
+  id: string;
+  userId: string;
+  eventType: 'kyc_submitted' | 'kyc_verified' | 'kyc_rejected' | 'kyc_expired' | 'tier_changed' | 'limit_increase_requested' | 'limit_increase_approved' | 'limit_increase_rejected' | 'reverification_triggered' | 'provider_verified';
+  timestamp: number;
+  details?: Record<string, unknown>;
+}
+
+const AUDIT_TRAIL_KEY = 'stellar_spend_kyc_audit';
+
 const TIER_LIMITS: Record<LimitTier, TransactionLimit> = {
   tier1: { dailyLimit: 1000, monthlyLimit: 10000, transactionLimit: 500 },
   tier2: { dailyLimit: 5000, monthlyLimit: 50000, transactionLimit: 2500 },
@@ -120,6 +130,8 @@ export class KYCLimitService {
     const kycMap = this.getAllKYC();
     kycMap[userId] = kyc;
     this.persistKYC(kycMap);
+
+    this.recordAuditEvent({ userId, eventType: 'kyc_submitted', details: { documentType, documentId } });
     return kyc;
   }
 
@@ -139,6 +151,8 @@ export class KYCLimitService {
     kycMap[userId] = kyc;
     this.persistKYC(kycMap);
 
+    this.recordAuditEvent({ userId, eventType: 'kyc_verified', details: { previousStatus: kyc.status } });
+
     // Upgrade to tier2 on verification
     this.initializeUserLimits(userId, 'tier2');
     return kyc;
@@ -154,6 +168,8 @@ export class KYCLimitService {
     const kycMap = this.getAllKYC();
     kycMap[userId] = kyc;
     this.persistKYC(kycMap);
+
+    this.recordAuditEvent({ userId, eventType: 'kyc_rejected', details: { reason } });
     return kyc;
   }
 
@@ -371,6 +387,64 @@ export class KYCLimitService {
       totalTransactionVolume,
       flaggedTransactions: amlResults.filter((r) => r.flags.length > 0).length,
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Audit trail
+  // ---------------------------------------------------------------------------
+
+  static recordAuditEvent(event: Omit<KYCAuditEvent, 'id' | 'timestamp'>): KYCAuditEvent {
+    const auditEvent: KYCAuditEvent = {
+      ...event,
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+    } as KYCAuditEvent;
+
+    const trail = this.getAuditTrail(event.userId);
+    trail.push(auditEvent);
+    if (typeof window !== 'undefined') {
+      const all = JSON.parse(localStorage.getItem(AUDIT_TRAIL_KEY) || '{}');
+      all[event.userId] = trail;
+      localStorage.setItem(AUDIT_TRAIL_KEY, JSON.stringify(all));
+    }
+    return auditEvent;
+  }
+
+  static getAuditTrail(userId: string): KYCAuditEvent[] {
+    if (typeof window === 'undefined') return [];
+    const all = JSON.parse(localStorage.getItem(AUDIT_TRAIL_KEY) || '{}');
+    return all[userId] || [];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Re-verification triggers
+  // ---------------------------------------------------------------------------
+
+  static checkReverificationNeeded(userId: string): { needed: boolean; reason?: string } {
+    const kyc = this.getKYC(userId);
+    if (!kyc || kyc.status !== 'verified') {
+      return { needed: false, reason: 'Not verified yet' };
+    }
+
+    const limits = this.getUserLimits(userId);
+    if (!limits) return { needed: false };
+
+    if (kyc.verifiedAt && limits.tier === 'tier3') {
+      const oneYearAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
+      if (kyc.verifiedAt < oneYearAgo) {
+        return { needed: true, reason: 'KYC older than 1 year — re-verification required for tier3' };
+      }
+    }
+
+    return { needed: false };
+  }
+
+  static triggerReverification(userId: string, reason: string): void {
+    this.recordAuditEvent({
+      userId,
+      eventType: 'reverification_triggered',
+      details: { reason },
+    });
   }
 
   // ---------------------------------------------------------------------------
