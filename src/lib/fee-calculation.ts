@@ -1,9 +1,11 @@
 import { env } from './env';
+import type { ResourceFeeEstimate } from './stellar/resource-fee-estimator';
 
 export interface FeeBreakdown {
   bridgeFee: string;
   networkFee: string;
   paycrestFee: string;
+  contractResourceFee?: string;
   totalFee: string;
   amount: string;
   amountAfterFees: string;
@@ -16,6 +18,7 @@ export interface FeeCalculationParams {
   feeMethod: 'stablecoin' | 'native';
   bridgeAmount?: string;
   receiveAmount?: string;
+  contractResourceEstimate?: ResourceFeeEstimate;
 }
 
 const STABLECOIN_FEE_PERCENTAGE = 0.5; // 0.5%
@@ -57,15 +60,15 @@ export function calculateTotalFees(
   bridgeFee: string,
   networkFee: string,
   paycrestFee: string,
-  currency: string
+  currency: string,
+  contractResourceFee?: string
 ): string {
   const bridge = parseFloat(bridgeFee) || 0;
   const network = parseFloat(networkFee) || 0;
   const paycrest = parseFloat(paycrestFee) || 0;
+  const contractFee = contractResourceFee ? parseFloat(contractResourceFee) || 0 : 0;
 
-  // Convert XLM network fee to USDC equivalent if needed
-  // For simplicity, we'll keep them separate in the breakdown
-  const total = bridge + network + paycrest;
+  const total = bridge + network + paycrest + contractFee;
   return total.toFixed(6);
 }
 
@@ -82,23 +85,21 @@ export function calculateAmountAfterFees(amount: string, totalFee: string): stri
 }
 
 export async function calculateAllFees(params: FeeCalculationParams): Promise<FeeBreakdown> {
-  const { amount, currency, feeMethod, receiveAmount } = params;
+  const { amount, currency, feeMethod, receiveAmount, contractResourceEstimate } = params;
 
-  // Calculate individual fees
   const bridgeFee = calculateBridgeFee(amount, feeMethod);
   const networkFee = calculateNetworkFee(feeMethod);
   const paycrestFee = receiveAmount ? calculatePaycrestFee(receiveAmount) : '0';
+  const contractResourceFee = contractResourceEstimate ? contractResourceEstimate.estimatedFeeXLM : undefined;
 
-  // Calculate total
-  const totalFee = calculateTotalFees(bridgeFee, networkFee, paycrestFee, currency);
-
-  // Calculate amount after fees
+  const totalFee = calculateTotalFees(bridgeFee, networkFee, paycrestFee, currency, contractResourceFee);
   const amountAfterFees = calculateAmountAfterFees(amount, bridgeFee);
 
   return {
     bridgeFee,
     networkFee,
     paycrestFee,
+    contractResourceFee,
     totalFee,
     amount,
     amountAfterFees,
