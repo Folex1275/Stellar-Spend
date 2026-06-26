@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
+import { useFocusTrap, useFocusRestore } from "@/hooks/useFocusTrap";
 
 export interface TransactionPreviewData {
   amount: string;
@@ -37,6 +38,20 @@ export function TransactionPreviewModal({
 }: TransactionPreviewModalProps) {
   const [confirmed, setConfirmed] = useState(false);
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, isOpen);
+  useFocusRestore(isOpen);
+
+  // ESC calls onCancel (consistent with the Cancel button action)
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isLoading && !confirmed) onCancel();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isOpen, isLoading, confirmed, onCancel]);
+
   if (!isOpen || !data) return null;
 
   const handleConfirm = () => {
@@ -47,11 +62,15 @@ export function TransactionPreviewModal({
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="preview-title"
+      aria-hidden="true"
     >
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="preview-title"
+        className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto"
+      >
         {/* Header */}
         <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-6">
           <h2 id="preview-title" className="text-xl font-bold text-gray-900 dark:text-white">

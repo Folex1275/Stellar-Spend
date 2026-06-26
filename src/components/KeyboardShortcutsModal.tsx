@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import type { Shortcut } from "@/hooks/useKeyboardShortcuts";
 import { saveShortcutOverride, resetShortcutOverrides, ShortcutOverrides } from "@/hooks/useKeyboardShortcuts";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/cn";
+import { useFocusTrap, useFocusRestore } from "@/hooks/useFocusTrap";
 
 interface Props {
   open: boolean;
@@ -34,8 +35,12 @@ export function KeyboardShortcutsModal({ open, shortcuts, onClose }: Props) {
   const [pendingKey, setPendingKey] = useState("");
   const [pendingModifiers, setPendingModifiers] = useState<{ ctrl?: boolean; shift?: boolean }>({});
   const [conflict, setConflict] = useState<string | null>(null);
-  
+
   const { t } = useI18n();
+
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, open);
+  useFocusRestore(open);
 
   // Load current overrides to check for conflicts
   const currentOverrides = useMemo(() => {
@@ -128,15 +133,19 @@ export function KeyboardShortcutsModal({ open, shortcuts, onClose }: Props) {
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Keyboard shortcuts"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      aria-hidden="true"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full max-w-md border border-[#333] bg-[#0a0a0a] p-8 flex flex-col gap-6 shadow-2xl animate-in zoom-in-95 duration-200">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shortcuts-modal-title"
+        className="w-full max-w-md border border-[#333] bg-[#0a0a0a] p-8 flex flex-col gap-6 shadow-2xl animate-in zoom-in-95 duration-200"
+      >
         <div className="flex items-center justify-between border-b border-[#222] pb-4">
-          <h2 className="text-white font-bold text-sm uppercase tracking-widest">Keyboard shortcuts</h2>
+          <h2 id="shortcuts-modal-title" className="text-white font-bold text-sm uppercase tracking-widest">Keyboard shortcuts</h2>
           <div className="flex gap-4 items-center">
             <button
               onClick={handleReset}
