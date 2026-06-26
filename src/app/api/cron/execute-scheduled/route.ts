@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
         await executeScheduledTransaction(scheduled.id, '');
         logger.info(`Executed scheduled transaction ${scheduled.id}`);
       } catch (error) {
-        logger.error(`Failed to execute scheduled transaction ${scheduled.id}`, error);
+        logger.error(`Failed to execute scheduled transaction ${scheduled.id}`, { error: String(error) });
       }
     }
 
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    logger.error('Cron job failed', error);
+    logger.error('Cron job failed', { error: String(error) });
     return NextResponse.json(
       { error: 'Cron job failed' },
       { status: 500 }

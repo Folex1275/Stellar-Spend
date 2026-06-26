@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
 
       const { isValid, remainingCodes } = TwoFAService.verifyBackupCode(
         backupCodes,
+        [],
         code
       );
 

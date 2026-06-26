@@ -1,7 +1,7 @@
 import { graphql, parse, validate } from "graphql";
-import { schema } from "../../../../lib/graphql/schema";
-import { resolvers } from "../../../../lib/graphql/resolvers";
-import { buildContext } from "../../../../lib/graphql/context";
+import { schema } from "@/lib/graphql/schema";
+import { resolvers } from "@/lib/graphql/resolvers";
+import { buildContext } from "@/lib/graphql/context";
 
 const PLAYGROUND_HTML = `<!DOCTYPE html>
 <html>

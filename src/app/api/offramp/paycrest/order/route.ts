@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     try {
       // Check rate limit
-      const rateLimitCheck = paycrestOrderLimiter.check(clientIp);
+      const rateLimitCheck = await paycrestOrderLimiter.check(clientIp);
       if (!rateLimitCheck.allowed) {
         logger.logError(429, 'Rate limit exceeded');
         return NextResponse.json(

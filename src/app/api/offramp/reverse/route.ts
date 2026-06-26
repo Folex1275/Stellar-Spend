@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { TransactionStorage } from '@/lib/transaction-storage';
 import { withIdempotency } from '@/lib/idempotency';
 
-const REVERSAL_FEE_RATE = 0.01; // 1% reversal fee
-const REVERSAL_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+const REVERSAL_FEE_RATE = 0.01;
+const REVERSAL_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export interface ReversalRequest {
   transactionId: string;
@@ -36,7 +36,6 @@ function isWithinReversalWindow(tx: { timestamp: number }): boolean {
   return Date.now() - tx.timestamp <= REVERSAL_WINDOW_MS;
 }
 
-// GET: check eligibility and current reversal status
 export async function GET(req: NextRequest) {
   try {
     const transactionId = req.nextUrl.searchParams.get('transactionId');
@@ -85,118 +84,119 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: initiate reversal request
 export async function POST(req: NextRequest) {
   return withIdempotency(req, async () => {
-    const { transactionId, amount, reason } = await req.json();
+    try {
+      const { transactionId, amount, reason } = await req.json();
 
-    if (!transactionId || !amount || !reason) {
+      if (!transactionId || !amount || !reason) {
+        return NextResponse.json(
+          { error: 'Missing required fields: transactionId, amount, reason' },
+          { status: 400 }
+        );
+      }
+
+      const tx = TransactionStorage.getById(transactionId);
+      if (!tx) {
+        return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
+      }
+
+      if (!TransactionStorage.isReversalEligible(tx)) {
+        return NextResponse.json({ error: 'Transaction is not eligible for reversal' }, { status: 400 });
+      }
+
+      if (!isWithinReversalWindow(tx)) {
+        return NextResponse.json({ error: 'Outside 24-hour reversal window' }, { status: 400 });
+      }
+
+      const reversalAmount = parseFloat(amount);
+      const txAmount = parseFloat(tx.amount);
+      if (reversalAmount <= 0 || reversalAmount > txAmount) {
+        return NextResponse.json({ error: 'Invalid reversal amount' }, { status: 400 });
+      }
+
+      const fee = calculateReversalFee(reversalAmount);
+      const requestId = `REV-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+
+      const request: ReversalRequest = {
+        transactionId,
+        requestId,
+        amount,
+        fee: fee.toFixed(6),
+        reason,
+        status: 'pending',
+        requestedAt: Date.now(),
+      };
+      reversalRequests.set(requestId, request);
+
+      TransactionStorage.reverse(transactionId, amount, reason);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Reversal request submitted',
+        requestId,
+        reversalFee: fee,
+        netAmount: parseFloat((reversalAmount - fee).toFixed(6)),
+        transaction: TransactionStorage.getById(transactionId),
+      });
+    } catch (error) {
       return NextResponse.json(
-        { error: 'Missing required fields: transactionId, amount, reason' },
-        { status: 400 }
+        { error: error instanceof Error ? error.message : 'Internal server error' },
+        { status: 500 }
       );
     }
-
-    const tx = TransactionStorage.getById(transactionId);
-    if (!tx) {
-      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
-    }
-
-    if (!TransactionStorage.isReversalEligible(tx)) {
-      return NextResponse.json({ error: 'Transaction is not eligible for reversal' }, { status: 400 });
-    }
-
-    if (!isWithinReversalWindow(tx)) {
-      return NextResponse.json({ error: 'Outside 24-hour reversal window' }, { status: 400 });
-    }
-
-    const reversalAmount = parseFloat(amount);
-    const txAmount = parseFloat(tx.amount);
-    if (reversalAmount <= 0 || reversalAmount > txAmount) {
-      return NextResponse.json({ error: 'Invalid reversal amount' }, { status: 400 });
-    }
-
-    const fee = calculateReversalFee(reversalAmount);
-    const requestId = `REV-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-
-    const request: ReversalRequest = {
-      transactionId,
-      requestId,
-      amount,
-      fee: fee.toFixed(6),
-      reason,
-      status: 'pending',
-      requestedAt: Date.now(),
-    };
-    reversalRequests.set(requestId, request);
-
-    TransactionStorage.reverse(transactionId, amount, reason);
-
-    return NextResponse.json({
-      success: true,
-      message: 'Reversal request submitted',
-      requestId,
-      reversalFee: fee,
-      netAmount: parseFloat((reversalAmount - fee).toFixed(6)),
-      transaction: TransactionStorage.getById(transactionId),
-    });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
-    );
   });
 }
 
-// PATCH: approve or reject a reversal request
 export async function PATCH(req: NextRequest) {
   return withIdempotency(req, async () => {
-    const { requestId, action, notes } = await req.json();
+    try {
+      const { requestId, action, notes } = await req.json();
 
-    if (!requestId || !action) {
-      return NextResponse.json({ error: 'Missing required fields: requestId, action' }, { status: 400 });
+      if (!requestId || !action) {
+        return NextResponse.json({ error: 'Missing required fields: requestId, action' }, { status: 400 });
+      }
+
+      if (!['approve', 'reject'].includes(action)) {
+        return NextResponse.json({ error: 'action must be "approve" or "reject"' }, { status: 400 });
+      }
+
+      const request = reversalRequests.get(requestId);
+      if (!request) {
+        return NextResponse.json({ error: 'Reversal request not found' }, { status: 404 });
+      }
+
+      if (request.status !== 'pending') {
+        return NextResponse.json({ error: `Reversal is already ${request.status}` }, { status: 400 });
+      }
+
+      if (action === 'approve') {
+        request.status = 'approved';
+        request.approvedAt = Date.now();
+        TransactionStorage.updateReversalStatus(request.transactionId, 'completed');
+        request.status = 'completed';
+        request.completedAt = Date.now();
+      } else {
+        request.status = 'rejected';
+        TransactionStorage.updateReversalStatus(request.transactionId, 'failed');
+      }
+
+      reversalRequests.set(requestId, request);
+
+      return NextResponse.json({
+        success: true,
+        request,
+        notes: notes || null,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Internal server error' },
+        { status: 500 }
+      );
     }
-
-    if (!['approve', 'reject'].includes(action)) {
-      return NextResponse.json({ error: 'action must be "approve" or "reject"' }, { status: 400 });
-    }
-
-    const request = reversalRequests.get(requestId);
-    if (!request) {
-      return NextResponse.json({ error: 'Reversal request not found' }, { status: 404 });
-    }
-
-    if (request.status !== 'pending') {
-      return NextResponse.json({ error: `Reversal is already ${request.status}` }, { status: 400 });
-    }
-
-    if (action === 'approve') {
-      request.status = 'approved';
-      request.approvedAt = Date.now();
-      TransactionStorage.updateReversalStatus(request.transactionId, 'completed');
-      request.status = 'completed';
-      request.completedAt = Date.now();
-    } else {
-      request.status = 'rejected';
-      TransactionStorage.updateReversalStatus(request.transactionId, 'failed');
-    }
-
-    reversalRequests.set(requestId, request);
-
-    return NextResponse.json({
-      success: true,
-      request,
-      notes: notes || null,
-    });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
-    );
   });
 }
 
-// GET analytics via ?analytics=true handled above; add dedicated handler
 export async function PUT(req: NextRequest) {
   try {
     const { action } = await req.json();

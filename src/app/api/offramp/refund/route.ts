@@ -7,42 +7,32 @@ import type { NextRequest } from 'next/server';
 
 export const maxDuration = 30;
 
-/**
- * POST /api/offramp/refund
- * Requires Idempotency-Key header to prevent duplicate refunds.
- * Body: { transactionId: string; reason?: string; partial?: boolean }
- *   OR: { userAddress: string } to process all eligible refunds for a user
- */
 export async function POST(request: NextRequest) {
   return withIdempotency(request, async () => {
-    const body = await request.json();
+    try {
+      const body = await request.json();
 
-    // Bulk refund for a user
-    if (body.userAddress && !body.transactionId) {
-      const results = await processEligibleRefunds(body.userAddress);
-      return NextResponse.json({ data: results });
-    }
+      if (body.userAddress && !body.transactionId) {
+        const results = await processEligibleRefunds(body.userAddress);
+        return NextResponse.json({ data: results });
+      }
 
-    const { transactionId, reason = 'manual', partial = false } = body;
-    if (!transactionId || typeof transactionId !== 'string') {
-      return ErrorHandler.validation('transactionId is required');
-    }
+      const { transactionId, reason = 'manual', partial = false } = body;
+      if (!transactionId || typeof transactionId !== 'string') {
+        return ErrorHandler.validation('transactionId is required');
+      }
 
-    const result = await processRefund(transactionId, reason, partial);
-    if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 400 });
+      const result = await processRefund(transactionId, reason, partial);
+      if (!result.success) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      return NextResponse.json({ data: result });
+    } catch (err) {
+      return ErrorHandler.handle(err);
     }
-    return NextResponse.json({ data: result });
-  } catch (err) {
-    return ErrorHandler.handle(err);
-  }
   });
 }
 
-/**
- * GET /api/offramp/refund?transactionId=xxx
- * Returns refund eligibility for a transaction.
- */
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
