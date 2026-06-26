@@ -1,7 +1,6 @@
-/**
- * Priority queue for transaction processing.
- * Higher priority = processed first.
- */
+import { calculateBackoff, hasRemainingAttempts } from './webhook/retry-scheduler';
+import type { DeliveryRecord } from './webhook/types';
+import { logger } from './logger';
 
 export enum TransactionPriority {
   LOW = 1,
@@ -13,7 +12,7 @@ export enum TransactionPriority {
 export interface QueuedTransaction {
   id: string;
   priority: TransactionPriority;
-  amount: string; // USDC amount
+  amount: string;
   currency: string;
   feeMethod: 'stablecoin' | 'native';
   payload: Record<string, unknown>;
@@ -28,7 +27,6 @@ export interface PriorityFeeMultiplier {
   [TransactionPriority.URGENT]: number;
 }
 
-// Fee multipliers per priority level
 const FEE_MULTIPLIERS: PriorityFeeMultiplier = {
   [TransactionPriority.LOW]: 0.8,
   [TransactionPriority.NORMAL]: 1.0,
@@ -43,6 +41,25 @@ export interface QueueMetrics {
   queueDepth: number;
   avgWaitMs: number;
   byPriority: Record<TransactionPriority, number>;
+}
+
+export interface DeliveryRetryState {
+  deliveryId: string;
+  destinationUrl: string;
+  attemptCount: number;
+  maxAttempts: number;
+  nextAttemptAt: number;
+  lastError?: string;
+  enqueuedAt: number;
+}
+
+export interface DeliveryRetryMetrics {
+  activeRetries: number;
+  totalRetried: number;
+  totalExhausted: number;
+  byDestination: Record<string, number>;
+  dlqDepth: number;
+  dlqThresholdBreached: boolean;
 }
 
 export class TransactionPriorityQueue {
@@ -62,15 +79,10 @@ export class TransactionPriorityQueue {
   };
   private waitTimes: number[] = [];
 
-  /**
-   * Remove a transaction from the queue by id.
-   * Returns true if found and removed.
-   */
   remove(id: string): boolean {
     const idx = this.heap.findIndex((t) => t.id === id);
     if (idx === -1) return false;
     this.heap.splice(idx, 1);
-    // Rebuild heap after arbitrary removal
     for (let i = Math.floor(this.heap.length / 2) - 1; i >= 0; i--) {
       this.sinkDown(i);
     }
@@ -78,15 +90,10 @@ export class TransactionPriorityQueue {
     return true;
   }
 
-  /**
-   * Override the priority of an existing queued transaction (admin use).
-   * Returns true if the transaction was found.
-   */
   overridePriority(id: string, newPriority: TransactionPriority): boolean {
     const tx = this.heap.find((t) => t.id === id);
     if (!tx) return false;
     tx.priority = newPriority;
-    // Rebuild heap to restore invariant
     for (let i = Math.floor(this.heap.length / 2) - 1; i >= 0; i--) {
       this.sinkDown(i);
     }
@@ -96,12 +103,9 @@ export class TransactionPriorityQueue {
     return true;
   }
 
-  /**
-   * Return a snapshot of all items currently in the queue (read-only view).
-   */
   getAll(): ReadonlyArray<QueuedTransaction> {
     return [...this.heap].sort((a, b) =>
-      this.compare(a, b) ? -1 : this.compare(b, a) ? 1 : 0
+      this.compare(a, b) ? -1 : this.compare(b, a) ? 1 : 0,
     );
   }
 
@@ -150,7 +154,6 @@ export class TransactionPriorityQueue {
 
   private compare(a: QueuedTransaction, b: QueuedTransaction): boolean {
     if (a.priority !== b.priority) return a.priority > b.priority;
-    // FIFO within same priority
     return a.enqueuedAt < b.enqueuedAt;
   }
 
@@ -179,9 +182,6 @@ export class TransactionPriorityQueue {
   }
 }
 
-/**
- * Calculate the priority-adjusted fee for a transaction.
- */
 export function calculatePriorityFee(baseFee: string, priority: TransactionPriority): string {
   const base = parseFloat(baseFee);
   if (isNaN(base)) return baseFee;
@@ -189,9 +189,6 @@ export function calculatePriorityFee(baseFee: string, priority: TransactionPrior
   return adjusted.toFixed(6);
 }
 
-/**
- * Determine priority from amount (larger amounts get higher priority).
- */
 export function inferPriorityFromAmount(amountUsdc: string): TransactionPriority {
   const amount = parseFloat(amountUsdc);
   if (isNaN(amount)) return TransactionPriority.NORMAL;
@@ -201,10 +198,95 @@ export function inferPriorityFromAmount(amountUsdc: string): TransactionPriority
   return TransactionPriority.LOW;
 }
 
-// Singleton queue instance for the server process
 let _queue: TransactionPriorityQueue | null = null;
 
 export function getTransactionQueue(): TransactionPriorityQueue {
   if (!_queue) _queue = new TransactionPriorityQueue();
   return _queue;
+}
+
+export class DeliveryRetryQueue {
+  private retries: Map<string, DeliveryRetryState> = new Map();
+  private metrics: DeliveryRetryMetrics = {
+    activeRetries: 0,
+    totalRetried: 0,
+    totalExhausted: 0,
+    byDestination: {},
+    dlqDepth: 0,
+    dlqThresholdBreached: false,
+  };
+  private dlqThreshold = 10;
+
+  setDlqThreshold(threshold: number): void {
+    this.dlqThreshold = threshold;
+  }
+
+  push(record: DeliveryRecord): void {
+    if (!hasRemainingAttempts(record)) {
+      this.metrics.totalExhausted++;
+      logger.warn('delivery_retry.exhausted', { deliveryId: record.id, destinationUrl: record.destinationUrl });
+      return;
+    }
+
+    const delayMs = calculateBackoff(record.attemptCount);
+    const nextAttemptAt = Date.now() + delayMs;
+
+    const state: DeliveryRetryState = {
+      deliveryId: record.id,
+      destinationUrl: record.destinationUrl,
+      attemptCount: record.attemptCount,
+      maxAttempts: record.maxAttempts,
+      nextAttemptAt,
+      lastError: record.attempts.length > 0 ? record.attempts[record.attempts.length - 1].errorType : undefined,
+      enqueuedAt: Date.now(),
+    };
+
+    this.retries.set(record.id, state);
+    this.metrics.activeRetries = this.retries.size;
+    this.metrics.totalRetried++;
+    this.metrics.byDestination[record.destinationUrl] = (this.metrics.byDestination[record.destinationUrl] ?? 0) + 1;
+  }
+
+  poll(): DeliveryRetryState[] {
+    const now = Date.now();
+    const due: DeliveryRetryState[] = [];
+    for (const [id, state] of this.retries) {
+      if (state.nextAttemptAt <= now) {
+        due.push(state);
+        this.retries.delete(id);
+      }
+    }
+    this.metrics.activeRetries = this.retries.size;
+    return due;
+  }
+
+  remove(deliveryId: string): boolean {
+    const removed = this.retries.delete(deliveryId);
+    this.metrics.activeRetries = this.retries.size;
+    return removed;
+  }
+
+  updateDlqDepth(depth: number): void {
+    this.metrics.dlqDepth = depth;
+    this.metrics.dlqThresholdBreached = depth >= this.dlqThreshold;
+    if (this.metrics.dlqThresholdBreached) {
+      logger.warn('dlq.threshold_breached', { depth, threshold: this.dlqThreshold });
+    }
+  }
+
+  getMetrics(): DeliveryRetryMetrics {
+    return { ...this.metrics };
+  }
+
+  clear(): void {
+    this.retries.clear();
+    this.metrics.activeRetries = 0;
+  }
+}
+
+let _deliveryRetryQueue: DeliveryRetryQueue | null = null;
+
+export function getDeliveryRetryQueue(): DeliveryRetryQueue {
+  if (!_deliveryRetryQueue) _deliveryRetryQueue = new DeliveryRetryQueue();
+  return _deliveryRetryQueue;
 }

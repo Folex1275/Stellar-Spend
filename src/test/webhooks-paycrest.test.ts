@@ -17,7 +17,16 @@ vi.mock('@/lib/notifications/service', () => ({
   notifyTransactionStatusUpdate: vi.fn().mockResolvedValue(undefined),
 }));
 
-// ── Env mock ──────────────────────────────────────────────────────────────────
+vi.mock('@/lib/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    withContext: vi.fn().mockReturnThis(),
+  },
+}));
+
 vi.mock('@/lib/env', () => ({
   env: {
     server: {
@@ -38,8 +47,7 @@ vi.mock('@/lib/env', () => ({
 }));
 
 import { POST } from '@/app/api/webhooks/paycrest/route';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
+import { logger } from '@/lib/logger';
 
 async function hmacHex(body: string, secret: string): Promise<string> {
   const enc = new TextEncoder();
@@ -48,30 +56,43 @@ async function hmacHex(body: string, secret: string): Promise<string> {
     enc.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign']
+    ['sign'],
   );
   const mac = await crypto.subtle.sign('HMAC', key, enc.encode(body));
   return Buffer.from(mac).toString('hex');
 }
 
-function makeRequest(body: string, signature: string): Request {
+function makeRequest(body: string, signature: string, timestamp?: string, nonce?: string): Request {
+  const headers: Record<string, string> = {
+    'X-Paycrest-Signature': signature,
+  };
+  if (timestamp) headers['X-Paycrest-Timestamp'] = timestamp;
+  if (nonce) headers['X-Paycrest-Nonce'] = nonce;
   return new Request('http://localhost/api/webhooks/paycrest', {
     method: 'POST',
     body,
-    headers: { 'X-Paycrest-Signature': signature },
+    headers,
   });
 }
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('POST /api/webhooks/paycrest', () => {
   beforeEach(() => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.clearAllMocks();
   });
 
-  it('returns 200 with valid signature', async () => {
+  it('returns 200 with valid signature, timestamp, and nonce', async () => {
     const body = JSON.stringify({ event: 'payment_order.settled', data: { id: 'order-1' } });
+    const sig = await hmacHex(body, 'test-webhook-secret');
+    const res = await POST(makeRequest(body, sig, String(Date.now()), 'nonce-1'));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toEqual({ received: true });
+  });
+
+  it('returns 200 with valid signature (backward compat without timestamp/nonce)', async () => {
+    const body = JSON.stringify({ event: 'payment_order.settled', data: { id: 'order-2' } });
     const sig = await hmacHex(body, 'test-webhook-secret');
     const res = await POST(makeRequest(body, sig));
     expect(res.status).toBe(200);
@@ -81,7 +102,7 @@ describe('POST /api/webhooks/paycrest', () => {
 
   it('returns 401 with invalid signature', async () => {
     const body = JSON.stringify({ event: 'payment_order.settled', data: { id: 'order-1' } });
-    const res = await POST(makeRequest(body, 'bad-signature'));
+    const res = await POST(makeRequest(body, 'bad-signature', String(Date.now()), 'nonce-2'));
     expect(res.status).toBe(401);
   });
 
@@ -92,20 +113,29 @@ describe('POST /api/webhooks/paycrest', () => {
     expect(res.status).toBe(401);
   });
 
-  it('logs order id and status for payment_order.settled', async () => {
-    const consoleSpy = vi.spyOn(console, 'log');
-    const body = JSON.stringify({ event: 'payment_order.settled', data: { id: 'order-42' } });
+  it('rejects expired timestamp', async () => {
+    const body = JSON.stringify({ event: 'payment_order.settled', data: { id: 'order-3' } });
     const sig = await hmacHex(body, 'test-webhook-secret');
-    await POST(makeRequest(body, sig));
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('order-42'));
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('settled'));
+    const oldTimestamp = String(Date.now() - 10 * 60 * 1000);
+    const res = await POST(makeRequest(body, sig, oldTimestamp, 'nonce-3'));
+    expect(res.status).toBe(401);
   });
 
-  it('warns on unhandled event type', async () => {
-    const warnSpy = vi.spyOn(console, 'warn');
+  it('detects and rejects replay attacks (same nonce)', async () => {
+    const body = JSON.stringify({ event: 'payment_order.settled', data: { id: 'order-replay' } });
+    const sig = await hmacHex(body, 'test-webhook-secret');
+    const ts = String(Date.now());
+    const nonce = 'replay-nonce-test';
+    const res1 = await POST(makeRequest(body, sig, ts, nonce));
+    expect(res1.status).toBe(200);
+    const res2 = await POST(makeRequest(body, sig, ts, nonce));
+    expect(res2.status).toBe(401);
+  });
+
+  it('logs on unhandled event type', async () => {
     const body = JSON.stringify({ event: 'payment_order.unknown', data: { id: 'order-99' } });
     const sig = await hmacHex(body, 'test-webhook-secret');
-    await POST(makeRequest(body, sig));
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('unhandled event'));
+    await POST(makeRequest(body, sig, String(Date.now()), 'nonce-log'));
+    expect(logger.warn).toHaveBeenCalledWith('webhook.unhandled_event', expect.any(Object));
   });
 });

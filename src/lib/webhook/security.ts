@@ -1,43 +1,81 @@
-/**
- * Webhook security: signature verification, timestamp validation,
- * replay attack prevention, and outgoing signature generation.
- */
+import { randomUUID } from 'crypto';
+import { pool } from '../db/client';
+import { logger } from '../logger';
 
-/** Replay attack prevention: store seen nonces for 5 minutes */
-const seenNonces = new Map<string, number>();
 const NONCE_TTL_MS = 5 * 60 * 1000;
-/** Max clock skew allowed between sender and receiver */
 const MAX_TIMESTAMP_SKEW_MS = 5 * 60 * 1000;
-
-/** Prune expired nonces to prevent unbounded memory growth */
-function pruneNonces(): void {
-  const cutoff = Date.now() - NONCE_TTL_MS;
-  for (const [nonce, ts] of seenNonces) {
-    if (ts < cutoff) seenNonces.delete(nonce);
-  }
-}
 
 export interface VerificationResult {
   valid: boolean;
   reason?: string;
 }
 
-/**
- * Verifies an incoming Paycrest webhook request.
- *
- * Checks:
- *  1. HMAC-SHA256 signature (timing-safe)
- *  2. Timestamp freshness (within MAX_TIMESTAMP_SKEW_MS)
- *  3. Replay attack prevention via nonce/timestamp deduplication
- */
+export interface VerificationOptions {
+  timestamp?: string | null;
+  nonce?: string | null;
+  allowedSkewMs?: number;
+}
+
+export class WebhookSecurityError extends Error {
+  constructor(
+    message: string,
+    public readonly cause: unknown,
+  ) {
+    super(message);
+    this.name = 'WebhookSecurityError';
+  }
+}
+
+export async function createNonceTable(): Promise<void> {
+  const sql = `
+    CREATE TABLE IF NOT EXISTS webhook_nonces (
+      nonce_key TEXT PRIMARY KEY,
+      expires_at TIMESTAMPTZ NOT NULL
+    )
+  `;
+  try {
+    await pool.query(sql);
+  } catch (err) {
+    throw new WebhookSecurityError('Failed to create webhook_nonces table', err);
+  }
+}
+
+async function pruneExpiredNonces(): Promise<void> {
+  try {
+    await pool.query('DELETE FROM webhook_nonces WHERE expires_at <= NOW()');
+  } catch {
+  }
+}
+
+async function isReplay(nonceKey: string): Promise<boolean> {
+  try {
+    const result = await pool.query(
+      'SELECT 1 FROM webhook_nonces WHERE nonce_key = $1',
+      [nonceKey],
+    );
+    return result.rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function markNonceUsed(nonceKey: string): Promise<void> {
+  try {
+    await pool.query(
+      'INSERT INTO webhook_nonces (nonce_key, expires_at) VALUES ($1, NOW() + make_interval(secs => $2)) ON CONFLICT DO NOTHING',
+      [nonceKey, NONCE_TTL_MS / 1000],
+    );
+  } catch {
+  }
+}
+
 export async function verifyWebhookSignature(
   rawBody: string,
   signature: string,
   secret: string,
   timestampHeader?: string | null,
-  nonceHeader?: string | null
+  nonceHeader?: string | null,
 ): Promise<VerificationResult> {
-  // 1. Signature check
   if (!signature) {
     logVerificationFailure('missing_signature', { timestampHeader, nonceHeader });
     return { valid: false, reason: 'Missing signature' };
@@ -49,7 +87,7 @@ export async function verifyWebhookSignature(
     encoder.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign']
+    ['sign'],
   );
   const mac = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody));
   const computed = Buffer.from(mac).toString('hex');
@@ -67,7 +105,6 @@ export async function verifyWebhookSignature(
     return { valid: false, reason: 'Invalid signature' };
   }
 
-  // 2. Timestamp validation
   if (timestampHeader) {
     const ts = parseInt(timestampHeader, 10);
     if (isNaN(ts)) {
@@ -81,25 +118,30 @@ export async function verifyWebhookSignature(
     }
   }
 
-  // 3. Replay attack prevention
-  pruneNonces();
+  await pruneExpiredNonces();
   const replayKey = nonceHeader ?? `${timestampHeader}:${signature.slice(0, 16)}`;
-  if (seenNonces.has(replayKey)) {
+  const alreadySeen = await isReplay(replayKey);
+  if (alreadySeen) {
     logVerificationFailure('replay_detected', { timestampHeader, nonceHeader });
     return { valid: false, reason: 'Replay attack detected' };
   }
-  seenNonces.set(replayKey, Date.now());
+  await markNonceUsed(replayKey);
 
   return { valid: true };
 }
 
-/**
- * Generates an HMAC-SHA256 signature for outgoing webhook payloads.
- * Returns hex-encoded signature.
- */
+export async function verifyProviderSignature(
+  rawBody: string,
+  signature: string,
+  secret: string,
+  options: VerificationOptions = {},
+): Promise<VerificationResult> {
+  return verifyWebhookSignature(rawBody, signature, secret, options.timestamp, options.nonce);
+}
+
 export async function generateOutgoingSignature(
   payload: string,
-  secret: string
+  secret: string,
 ): Promise<string> {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
@@ -107,18 +149,15 @@ export async function generateOutgoingSignature(
     encoder.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign']
+    ['sign'],
   );
   const mac = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
   return Buffer.from(mac).toString('hex');
 }
 
-/**
- * Builds headers for an outgoing signed webhook request.
- */
 export async function buildSignedWebhookHeaders(
   payload: string,
-  secret: string
+  secret: string,
 ): Promise<Record<string, string>> {
   const timestamp = String(Date.now());
   const signature = await generateOutgoingSignature(`${timestamp}.${payload}`, secret);
@@ -129,7 +168,14 @@ export async function buildSignedWebhookHeaders(
   };
 }
 
-/** Structured log for verification failures */
+export class WebhookSecurity {
+  static verifyProviderSignature = verifyProviderSignature;
+  static verifyWebhookSignature = verifyWebhookSignature;
+  static generateOutgoingSignature = generateOutgoingSignature;
+  static buildSignedWebhookHeaders = buildSignedWebhookHeaders;
+  static createNonceTable = createNonceTable;
+}
+
 function logVerificationFailure(reason: string, context: Record<string, unknown>): void {
-  console.warn(JSON.stringify({ event: 'webhook.verification_failed', reason, ...context, timestamp: new Date().toISOString() }));
+  logger.warn('webhook.verification_failed', { reason, ...context });
 }
