@@ -9,6 +9,7 @@ import {
   processInsurancePayout,
   getInsuranceAnalytics,
 } from '@/lib/services/insurance.service';
+import { withIdempotency } from '@/lib/idempotency';
 
 // GET: fetch insurance status or analytics
 export async function GET(req: NextRequest) {
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
 
 // POST: purchase insurance or file a claim
 export async function POST(req: NextRequest) {
-  try {
+  return withIdempotency(req, async () => {
     const { action, transactionId, insuranceId, amount, currency, includeInsurance, reason, evidence } = await req.json();
 
     if (action === 'claim') {
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+  });
 }
 
 // PATCH: approve/reject claim or process payout

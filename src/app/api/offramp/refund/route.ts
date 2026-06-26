@@ -2,16 +2,19 @@ import { NextResponse } from 'next/server';
 import { ErrorHandler } from '@/lib/error-handler';
 import { processRefund, processEligibleRefunds, isRefundEligible } from '@/lib/refund/refund-service';
 import { dal } from '@/lib/db/dal';
+import { withIdempotency } from '@/lib/idempotency';
+import type { NextRequest } from 'next/server';
 
 export const maxDuration = 30;
 
 /**
  * POST /api/offramp/refund
+ * Requires Idempotency-Key header to prevent duplicate refunds.
  * Body: { transactionId: string; reason?: string; partial?: boolean }
  *   OR: { userAddress: string } to process all eligible refunds for a user
  */
-export async function POST(request: Request) {
-  try {
+export async function POST(request: NextRequest) {
+  return withIdempotency(request, async () => {
     const body = await request.json();
 
     // Bulk refund for a user
@@ -33,6 +36,7 @@ export async function POST(request: Request) {
   } catch (err) {
     return ErrorHandler.handle(err);
   }
+  });
 }
 
 /**

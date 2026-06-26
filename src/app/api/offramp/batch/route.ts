@@ -8,9 +8,10 @@ import {
   executeBatch,
   getBatchAnalytics,
 } from '@/lib/services/batch.service';
+import { withIdempotency } from '@/lib/idempotency';
 
 export async function POST(req: NextRequest) {
-  try {
+  return withIdempotency(req, async () => {
     const body = await req.json();
     const { action } = body;
 
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return NextResponse.json({ error: 'Failed to process batch request' }, { status: 500 });
   }
+  });
 }
 
 export async function GET(req: NextRequest) {

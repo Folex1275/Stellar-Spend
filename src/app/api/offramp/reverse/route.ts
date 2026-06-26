@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TransactionStorage } from '@/lib/transaction-storage';
+import { withIdempotency } from '@/lib/idempotency';
 
 const REVERSAL_FEE_RATE = 0.01; // 1% reversal fee
 const REVERSAL_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -86,7 +87,7 @@ export async function GET(req: NextRequest) {
 
 // POST: initiate reversal request
 export async function POST(req: NextRequest) {
-  try {
+  return withIdempotency(req, async () => {
     const { transactionId, amount, reason } = await req.json();
 
     if (!transactionId || !amount || !reason) {
@@ -144,12 +145,12 @@ export async function POST(req: NextRequest) {
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     );
-  }
+  });
 }
 
 // PATCH: approve or reject a reversal request
 export async function PATCH(req: NextRequest) {
-  try {
+  return withIdempotency(req, async () => {
     const { requestId, action, notes } = await req.json();
 
     if (!requestId || !action) {
@@ -192,7 +193,7 @@ export async function PATCH(req: NextRequest) {
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     );
-  }
+  });
 }
 
 // GET analytics via ?analytics=true handled above; add dedicated handler

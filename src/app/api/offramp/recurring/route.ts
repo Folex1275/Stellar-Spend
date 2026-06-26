@@ -5,6 +5,7 @@ import {
   computeNextRunAt,
 } from '@/lib/recurring-transactions';
 import crypto from 'crypto';
+import { withIdempotency } from '@/lib/idempotency';
 
 const VALID_FREQUENCIES: RecurringFrequency[] = ['daily', 'weekly', 'monthly'];
 
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  try {
+  return withIdempotency(req, async () => {
     const body = await req.json();
     const {
       userAddress,
@@ -72,4 +73,5 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Failed to create recurring schedule' }, { status: 500 });
   }
+  });
 }

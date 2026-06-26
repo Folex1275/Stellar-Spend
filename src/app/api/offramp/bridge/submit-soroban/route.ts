@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { decodeTxResultXdr, extractErrorMessage } from '@/lib/offramp/utils/errors';
+import { withIdempotency } from '@/lib/idempotency';
 
 export const maxDuration = 15;
 
@@ -7,6 +8,7 @@ export const maxDuration = 15;
  * POST /api/offramp/bridge/submit-soroban
  * 
  * Submits a signed Stellar XDR transaction to the Soroban RPC.
+ * Requires Idempotency-Key header to prevent duplicate submissions.
  * 
  * Request body:
  * {
@@ -21,7 +23,7 @@ export const maxDuration = 15;
  * }
  */
 export async function POST(req: NextRequest) {
-  try {
+  return withIdempotency(req, async () => {
     const { signedXdr } = await req.json();
 
     if (!signedXdr) {
@@ -88,4 +90,5 @@ export async function POST(req: NextRequest) {
     const message = extractErrorMessage(err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
+  });
 }
