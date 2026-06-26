@@ -114,10 +114,12 @@ export async function getCurrencies(): Promise<CurrencyInfo[]> {
 
 /** Fetches institutions for a currency, checking corridor config first */
 export async function getInstitutions(currency: string): Promise<Array<{ id: string; name: string; code: string }>> {
-  const { getCorridorInstitutions } = await import('./corridor-config');
-  const configInstitutions = getCorridorInstitutions(currency);
-  if (configInstitutions.length > 0) {
-    return configInstitutions;
-  }
+  try {
+    const { getCorridorInstitutions } = await import('./corridor-config');
+    const configInstitutions = getCorridorInstitutions(currency);
+    if (configInstitutions.length > 0) {
+      return configInstitutions;
+    }
+  } catch {}
   return [];
 }

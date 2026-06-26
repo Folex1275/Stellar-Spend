@@ -93,25 +93,58 @@ const TIER_LIMITS: Record<LimitTier, TransactionLimit> = {
   tier3: { dailyLimit: 50000, monthlyLimit: 500000, transactionLimit: 25000 },
 };
 
+let _corridorOverridesCache: Record<string, Record<string, { dailyLimit: number; monthlyLimit: number; transactionLimit: number }>> | undefined;
+
+function loadCorridorOverrides(): void {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('stellar_spend_corridor_overrides');
+      if (stored) {
+        _corridorOverridesCache = JSON.parse(stored);
+        return;
+      }
+    } catch {}
+  }
+  // Default corridor overrides (loaded from corridor-config on server)
+  _corridorOverridesCache = {
+    NGN: {
+      tier2: { dailyLimit: 10000, monthlyLimit: 100000, transactionLimit: 5000 },
+    },
+  };
+}
+
 /** Apply per-corridor KYC limit overrides on top of the global defaults */
 function applyCorridorOverrides(tier: LimitTier, currency?: string): TransactionLimit {
   const base = TIER_LIMITS[tier];
   if (!currency) return base;
 
-  try {
-    const { getCorridorKycDefaults } = require('./corridor-config');
-    const defaults = getCorridorKycDefaults(currency.toUpperCase());
-    if (defaults?.tierOverrides?.[tier]) {
-      const override = defaults.tierOverrides[tier]!;
-      return {
-        dailyLimit: override.dailyLimit ?? base.dailyLimit,
-        monthlyLimit: override.monthlyLimit ?? base.monthlyLimit,
-        transactionLimit: override.transactionLimit ?? base.transactionLimit,
-      };
-    }
-  } catch {}
+  if (!_corridorOverridesCache) {
+    loadCorridorOverrides();
+  }
+
+  const overrides = _corridorOverridesCache?.[currency.toUpperCase()]?.[tier];
+  if (overrides) {
+    return {
+      dailyLimit: overrides.dailyLimit ?? base.dailyLimit,
+      monthlyLimit: overrides.monthlyLimit ?? base.monthlyLimit,
+      transactionLimit: overrides.transactionLimit ?? base.transactionLimit,
+    };
+  }
 
   return base;
+}
+
+/**
+ * Set corridor-specific KYC overrides at runtime.
+ * Called by the server on startup to sync corridor-config into KYC limits.
+ */
+export function setCorridorOverrides(overrides: Record<string, Record<string, { dailyLimit: number; monthlyLimit: number; transactionLimit: number }>>): void {
+  _corridorOverridesCache = overrides;
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('stellar_spend_corridor_overrides', JSON.stringify(overrides));
+    } catch {}
+  }
 }
 
 export class KYCLimitService {
@@ -255,6 +288,12 @@ export class KYCLimitService {
       this.persistLimits(limitsMap);
     }
 
+    this.recordAuditEvent({
+      userId,
+      eventType: 'limit_increase_requested',
+      details: { requestedTier },
+    });
+
     return request;
   }
 
@@ -272,6 +311,13 @@ export class KYCLimitService {
     const limitsMap = this.getAllLimits();
     limitsMap[userId] = limits;
     this.persistLimits(limitsMap);
+
+    this.recordAuditEvent({
+      userId,
+      eventType: 'limit_increase_approved',
+      details: { requestId, requestedTier: request.requestedTier },
+    });
+
     return true;
   }
 

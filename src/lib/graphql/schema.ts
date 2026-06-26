@@ -1,6 +1,8 @@
 import { buildSchema } from "graphql";
 
 export const typeDefs = `
+  # ─── Core Domain Types ────────────────────────────────────────────────────────
+
   type Transaction {
     id: ID!
     status: String!
@@ -10,10 +12,53 @@ export const typeDefs = `
     rate: Float
     bridgeFee: String
     payoutFee: String
+    networkFee: String
+    totalFee: String
+    feeMethod: String
     createdAt: String!
     updatedAt: String!
+    finalizedAt: String
     stellarTxHash: String
-    paycrestOrderId: String
+    bridgeStatus: String
+    payoutOrderId: String
+    payoutStatus: String
+    userAddress: String!
+    beneficiary: Beneficiary
+    reversal: ReversalInfo
+    insurance: InsuranceInfo
+    tags: [Tag!]
+    note: String
+    isFavorite: Boolean
+    error: String
+  }
+
+  type Beneficiary {
+    institution: String!
+    accountIdentifier: String!
+    accountName: String
+    currency: String!
+  }
+
+  type ReversalInfo {
+    id: ID!
+    amount: String!
+    reason: String!
+    status: String!
+    createdAt: String!
+  }
+
+  type InsuranceInfo {
+    premium: Float!
+    coverage: Float!
+    provider: String!
+    status: String!
+    purchasedAt: String!
+  }
+
+  type Tag {
+    id: ID!
+    name: String!
+    color: String!
   }
 
   type Quote {
@@ -23,6 +68,8 @@ export const typeDefs = `
     bridgeFee: String!
     payoutFee: String!
     estimatedTime: Int!
+    validUntil: String
+    sourceAmount: String
   }
 
   type Currency {
@@ -30,6 +77,9 @@ export const typeDefs = `
     name: String!
     symbol: String!
     flag: String
+    minAmount: Float
+    maxAmount: Float
+    decimals: Int
   }
 
   type Institution {
@@ -37,6 +87,7 @@ export const typeDefs = `
     name: String!
     code: String!
     currency: String!
+    type: String
   }
 
   type RateInfo {
@@ -44,6 +95,80 @@ export const typeDefs = `
     currency: String!
     updatedAt: String!
   }
+
+  # ─── Dispute Types ────────────────────────────────────────────────────────────
+
+  type Dispute {
+    id: ID!
+    transactionId: String!
+    userId: String!
+    reason: String!
+    status: String!
+    resolution: String
+    resolvedBy: String
+    createdAt: String!
+    updatedAt: String!
+    resolvedAt: String
+    evidence: [String!]
+  }
+
+  # ─── Analytics Types ──────────────────────────────────────────────────────────
+
+  type AnalyticsSummary {
+    totalTransactions: Int!
+    totalVolume: String!
+    completedTransactions: Int!
+    failedTransactions: Int!
+    pendingTransactions: Int!
+    averageTransactionValue: String!
+    topCurrencies: [CurrencyVolume!]!
+    volumeByDay: [DailyVolume!]!
+    periodStart: String!
+    periodEnd: String!
+  }
+
+  type CurrencyVolume {
+    currency: String!
+    count: Int!
+    volume: String!
+  }
+
+  type DailyVolume {
+    date: String!
+    count: Int!
+    volume: String!
+  }
+
+  # ─── KYC / Compliance Types ──────────────────────────────────────────────────
+
+  type KYCInfo {
+    userId: String!
+    status: String!
+    documentType: String
+    submittedAt: String!
+    verifiedAt: String
+    rejectionReason: String
+  }
+
+  type UserLimits {
+    userId: String!
+    tier: String!
+    dailyLimit: Float!
+    monthlyLimit: Float!
+    transactionLimit: Float!
+    dailyUsed: Float!
+    monthlyUsed: Float!
+  }
+
+  type ScreeningResult {
+    verdict: String!
+    score: Int!
+    flags: [String!]!
+    provider: String
+    screenedAt: String!
+  }
+
+  # ─── Webhook Types ────────────────────────────────────────────────────────────
 
   type WebhookDelivery {
     id: ID!
@@ -72,13 +197,15 @@ export const typeDefs = `
     dlqCount: Int!
   }
 
+  # ─── Queries ──────────────────────────────────────────────────────────────────
+
   type Query {
     # Transaction queries
     transaction(id: ID!): Transaction
-    transactions(limit: Int, offset: Int, status: String): [Transaction!]!
+    transactions(limit: Int, offset: Int, status: String, currency: String): [Transaction!]!
 
     # Quote query
-    quote(amount: String!, currency: String!, feeMethod: String): Quote
+    quote(amount: String!, currency: String!, feeMethod: String, sourceAddress: String): Quote
 
     # Currency queries
     currencies: [Currency!]!
@@ -87,6 +214,21 @@ export const typeDefs = `
     # Rate query
     rate(currency: String): RateInfo!
 
+    # Dispute queries
+    dispute(id: ID!): Dispute
+    disputes(status: String, limit: Int): [Dispute!]!
+
+    # Analytics queries
+    analyticsSummary(from: String, to: String): AnalyticsSummary!
+
+    # KYC queries
+    kycInfo(userId: String!): KYCInfo
+    userLimits(userId: String!): UserLimits
+
+    # Compliance queries
+    screeningResult(address: String!): ScreeningResult
+    screeningOverrides: [ScreeningResult!]!
+
     # Webhook queries
     webhookDelivery(id: ID!): WebhookDelivery
     webhookDeliveries(status: String, limit: Int): [WebhookDelivery!]!
@@ -94,20 +236,35 @@ export const typeDefs = `
     dlqEntries(limit: Int): [DLQEntry!]!
   }
 
-  type Mutation {
-    # Replay a failed webhook from DLQ
-    replayWebhook(dlqEntryId: ID!): WebhookDelivery!
+  # ─── Mutations ────────────────────────────────────────────────────────────────
 
-    # Retry a failed delivery
+  type Mutation {
+    # Webhook mutations
+    replayWebhook(dlqEntryId: ID!): WebhookDelivery!
     retryWebhookDelivery(deliveryId: ID!): WebhookDelivery!
+
+    # Dispute mutations
+    createDispute(transactionId: String!, reason: String!, evidence: [String!]): Dispute!
+    resolveDispute(id: ID!, resolution: String!): Dispute!
+
+    # Screening override mutations
+    addScreeningOverride(address: String!, verdict: String!, reason: String!): Boolean!
+    removeScreeningOverride(address: String!): Boolean!
+
+    # KYC mutations
+    submitKYC(userId: String!, documentType: String!, documentId: String!): KYCInfo!
+    approveKYC(userId: String!): KYCInfo!
+    rejectKYC(userId: String!, reason: String!): KYCInfo!
   }
 
-  type Subscription {
-    # Real-time transaction status updates
-    transactionStatusChanged(id: ID!): Transaction!
+  # ─── Subscriptions ────────────────────────────────────────────────────────────
 
-    # Real-time rate updates
+  type Subscription {
+    transactionStatusChanged(id: ID!): Transaction!
     rateUpdated(currency: String): RateInfo!
+    transactionCreated: Transaction!
+    disputeStatusChanged(id: ID!): Dispute!
+    screeningAlert(address: String!): ScreeningResult!
   }
 `;
 
