@@ -7,6 +7,8 @@ import { getCurrencyFlag } from "@/lib/currency-flags";
 import { TransactionTableSkeleton } from "./skeletons";
 import { StatusBadge } from "./StatusBadge";
 import { EmptyState } from "./EmptyState";
+import VirtualList from "./VirtualList";
+import { useCallback, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Mock data — replaced by real TransactionStorage rows when wired up
@@ -25,6 +27,7 @@ const MOCK_ROWS: RecentOfframpRow[] = [
 export interface RecentOfframpsTableProps {
   rows?: ReadonlyArray<RecentOfframpRow>;
   isLoading?: boolean;
+  useVirtualization?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -44,10 +47,74 @@ function getCurrencyColumnHeader(rows: ReadonlyArray<RecentOfframpRow>): string 
 }
 
 // ---------------------------------------------------------------------------
+// Row Component (used by both regular and virtual renderers)
+// ---------------------------------------------------------------------------
+
+interface TableRowProps {
+  row: RecentOfframpRow;
+  index: number;
+  isFocused?: boolean;
+  rowClassName?: string;
+}
+
+function TableRow({ row, index, isFocused, rowClassName }: TableRowProps) {
+  return (
+    <tr
+      className={cn(
+        "border-b border-[#222222] transition-colors duration-100",
+        index % 2 === 0 ? "bg-[#111111]" : "bg-[#0f0f0f]",
+        "hover:bg-[#1a1a1a]",
+        isFocused && "ring-1 ring-[#c9a962]",
+        rowClassName,
+      )}
+      role="row"
+      tabIndex={isFocused ? 0 : -1}
+    >
+      <td className="px-5 py-3 text-xs text-[#777777] font-mono whitespace-nowrap">
+        <div className="flex items-center gap-2">
+          <a
+            href={`https://stellar.expert/explorer/public/tx/${row.txHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-[#c9a962] transition-colors duration-150 underline decoration-dotted"
+          >
+            {truncateTxHash(row.txHash)}
+          </a>
+          <CopyButton text={row.txHash} label="" className="text-[10px]" />
+        </div>
+      </td>
+      <td className="px-5 py-3 text-xs text-white tabular-nums whitespace-nowrap">
+        {row.usdc} USDC
+      </td>
+      <td className="px-5 py-3 text-xs text-white tabular-nums whitespace-nowrap">
+        {row.fiat}
+        {" "}
+        <span className="text-[#777777]">
+          {getCurrencyFlag(row.currency) && (
+            <span aria-label={row.currency} title={row.currency} className="ml-1">
+              {getCurrencyFlag(row.currency)}
+            </span>
+          )}
+        </span>
+      </td>
+      <td className="px-5 py-3 whitespace-nowrap">
+        <StatusBadge status={row.status} />
+      </td>
+    </tr>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export default function RecentOfframpsTable({ rows = MOCK_ROWS, isLoading }: RecentOfframpsTableProps) {
+export default function RecentOfframpsTable({ 
+  rows = MOCK_ROWS, 
+  isLoading,
+  useVirtualization = rows && rows.length > 50, // Enable virtualiz for 50+ rows
+}: RecentOfframpsTableProps) {
+  const [focusedRowIndex, setFocusedRowIndex] = useState<number | null>(null);
+
   if (isLoading) {
     return <TransactionTableSkeleton rows={3} />;
   }
@@ -93,6 +160,14 @@ export default function RecentOfframpsTable({ rows = MOCK_ROWS, isLoading }: Rec
     );
   }
 
+  const renderRow = useCallback((row: RecentOfframpRow, index: number, isFocused: boolean) => (
+    <table className="w-full" role="presentation">
+      <tbody>
+        <TableRow row={row} index={index} isFocused={isFocused} />
+      </tbody>
+    </table>
+  ), []);
+
   return (
     <div
       data-testid="RecentOfframpsTable"
@@ -118,68 +193,63 @@ export default function RecentOfframpsTable({ rows = MOCK_ROWS, isLoading }: Rec
         </a>
       </div>
 
-      {/* Horizontally scrollable table */}
+      {/* Table - virtualized or regular */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[520px] border-collapse" aria-label="Recent offramp transactions table">
-          {/* Gold header row */}
-          <thead>
-            <tr className="bg-[#c9a962]">
-              {["TX HASH", "USDC", getCurrencyColumnHeader(rows), "STATUS"].map((col) => (
-                <th
-                  key={col}
-                  scope="col"
-                  className="px-5 py-2.5 text-left text-[10px] tracking-[0.18em] font-semibold text-[#0a0a0a] uppercase whitespace-nowrap"
-                >
-                  {col}
-                </th>
-              ))}
-            </tr>
-          </thead>
-
-          <tbody>
-            {rows.map((row, i) => (
-              <tr
-                key={row.txHash}
-                className={cn(
-                  "border-b border-[#222222] transition-colors duration-100",
-                  i % 2 === 0 ? "bg-[#111111]" : "bg-[#0f0f0f]",
-                  "hover:bg-[#1a1a1a]"
-                )}
-              >
-                <td className="px-5 py-3 text-xs text-[#777777] font-mono whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    <a
-                      href={`https://stellar.expert/explorer/public/tx/${row.txHash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-[#c9a962] transition-colors duration-150 underline decoration-dotted"
+        {useVirtualization ? (
+          <div className="border-collapse">
+            {/* Header */}
+            <table className="w-full min-w-[520px] border-collapse" aria-label="Recent offramp transactions table header">
+              <thead>
+                <tr className="bg-[#c9a962] sticky top-0 z-10">
+                  {["TX HASH", "USDC", getCurrencyColumnHeader(rows), "STATUS"].map((col) => (
+                    <th
+                      key={col}
+                      scope="col"
+                      className="px-5 py-2.5 text-left text-[10px] tracking-[0.18em] font-semibold text-[#0a0a0a] uppercase whitespace-nowrap"
                     >
-                      {truncateTxHash(row.txHash)}
-                    </a>
-                    <CopyButton text={row.txHash} label="" className="text-[10px]" />
-                  </div>
-                </td>
-                <td className="px-5 py-3 text-xs text-white tabular-nums whitespace-nowrap">
-                  {row.usdc} USDC
-                </td>
-                <td className="px-5 py-3 text-xs text-white tabular-nums whitespace-nowrap">
-                  {row.fiat}
-                  {" "}
-                  <span className="text-[#777777]">
-                    {getCurrencyFlag(row.currency) && (
-                      <span aria-label={row.currency} title={row.currency} className="ml-1">
-                        {getCurrencyFlag(row.currency)}
-                      </span>
-                    )}
-                  </span>
-                </td>
-                <td className="px-5 py-3 whitespace-nowrap">
-                  <StatusBadge status={row.status} />
-                </td>
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            </table>
+
+            {/* Virtualized body */}
+            <VirtualList
+              items={rows}
+              itemHeight={48} // Approximate row height
+              containerHeight={Math.min(rows.length * 48, 400)} // Max 400px
+              renderItem={renderRow}
+              className="min-w-[520px]"
+              onFocusChange={setFocusedRowIndex}
+              role="presentation"
+              ariaLabel="Virtualized transaction rows"
+            />
+          </div>
+        ) : (
+          <table className="w-full min-w-[520px] border-collapse" aria-label="Recent offramp transactions table">
+            {/* Gold header row */}
+            <thead>
+              <tr className="bg-[#c9a962]">
+                {["TX HASH", "USDC", getCurrencyColumnHeader(rows), "STATUS"].map((col) => (
+                  <th
+                    key={col}
+                    scope="col"
+                    className="px-5 py-2.5 text-left text-[10px] tracking-[0.18em] font-semibold text-[#0a0a0a] uppercase whitespace-nowrap"
+                  >
+                    {col}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+
+            <tbody>
+              {rows.map((row, i) => (
+                <TableRow key={row.txHash} row={row} index={i} />
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
