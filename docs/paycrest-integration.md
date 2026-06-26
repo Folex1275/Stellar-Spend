@@ -281,6 +281,66 @@ vi.mock('@/lib/offramp/adapters/paycrest-adapter', () => ({
 
 To test the webhook handler, compute a valid HMAC-SHA-256 signature over the raw body using `PAYCREST_WEBHOOK_SECRET` and pass it as the `X-Paycrest-Signature` header. The test suite mocks `env.server.PAYCREST_WEBHOOK_SECRET` to a known value (`'test-secret'`) for deterministic signature generation.
 
+## 6. Adapter Pattern
+
+Paycrest is implemented as a **concrete adapter** conforming to `PayoutProviderAdapter`:
+
+```ts
+// src/lib/offramp/adapters/payout-provider.ts
+export interface PayoutProviderAdapter {
+  getCurrencies(): Promise<Currency[]>;
+  getInstitutions(currency): Promise<Institution[]>;
+  verifyAccount(institution, accountIdentifier): Promise<string>;
+  getRate(token, amount, currency, options?): Promise<number>;
+  createOrder(request): Promise<PayoutOrderResponse>;
+  getOrderStatus(orderId): Promise<Status>;
+  getHealth(): Promise<{ ok: boolean; latencyMs: number; error?: string }>;
+}
+```
+
+### Provider Registry
+
+The `BridgeProviderRegistry` (in `src/lib/offramp/adapters/provider-registry.ts`) manages all payout providers:
+
+```ts
+import { providerRegistry } from '@/lib/offramp/adapters/provider-registry';
+
+// Register providers
+providerRegistry.registerPayout('paycrest', paycrestAdapter);
+
+// Get eligible payouts for a currency
+const payouts = providerRegistry.getEligiblePayouts('NGN');
+
+// Check health
+const health = await providerRegistry.checkPayoutHealth('paycrest');
+```
+
+### Per-Corridor Routing
+
+```ts
+providerRegistry.configureRoutes([
+  {
+    corridor: 'usdc→ngn',
+    sourceChain: 'base',
+    destinationChain: 'bank',
+    token: 'USDC',
+    fiatCurrency: 'NGN',
+    bridgeProvider: 'allbridge',
+    payoutProvider: 'paycrest',
+    priority: 1,
+  },
+]);
+```
+
+### Health Probes
+
+Each provider exposes a `getHealth()` method that the registry calls periodically. The registry tracks:
+- `ok`: whether the provider responded
+- `latencyMs`: response time
+- `lastChecked`: timestamp of last check
+
+Route selection uses health status to skip degraded providers, falling back to the next priority.
+
 ### Sandbox API Key
 
 Paycrest provides a sandbox environment for end-to-end testing without real funds. Obtain a sandbox key from the Paycrest dashboard and set it in `.env.local`:
