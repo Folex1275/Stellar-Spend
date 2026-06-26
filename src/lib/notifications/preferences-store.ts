@@ -1,5 +1,5 @@
 import { pool } from '@/lib/db/client';
-import type { NotificationPreferences } from '@/lib/notifications/types';
+import type { ChannelEventRouting, NotificationPreferences } from '@/lib/notifications/types';
 
 export class NotificationPreferenceStoreError extends Error {
   constructor(message: string, public readonly cause: unknown) {
@@ -13,11 +13,15 @@ function rowToPreferences(row: Record<string, unknown>): NotificationPreferences
     userAddress: row.user_address as string,
     email: (row.email as string | null) ?? undefined,
     phoneNumber: (row.phone_number as string | null) ?? undefined,
+    pushToken: (row.push_token as string | null) ?? undefined,
     emailEnabled: Boolean(row.email_enabled),
     smsEnabled: Boolean(row.sms_enabled),
+    pushEnabled: Boolean(row.push_enabled),
     notifyOnPending: Boolean(row.notify_on_pending),
     notifyOnCompleted: Boolean(row.notify_on_completed),
     notifyOnFailed: Boolean(row.notify_on_failed),
+    channelRouting: (row.channel_routing as ChannelEventRouting | null) ?? undefined,
+    locale: (row.locale as string | null) ?? undefined,
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
   };
@@ -28,11 +32,7 @@ export async function getNotificationPreferences(
 ): Promise<NotificationPreferences | null> {
   try {
     const result = await pool.query(
-      `
-        SELECT *
-        FROM transaction_notification_preferences
-        WHERE LOWER(user_address) = LOWER($1)
-      `,
+      `SELECT * FROM transaction_notification_preferences WHERE LOWER(user_address) = LOWER($1)`,
       [userAddress]
     );
     return result.rows[0] ? rowToPreferences(result.rows[0]) : null;
@@ -58,19 +58,24 @@ export async function upsertNotificationPreferences(
     const result = await pool.query(
       `
         INSERT INTO transaction_notification_preferences (
-          user_address, email, phone_number, email_enabled, sms_enabled,
+          user_address, email, phone_number, push_token,
+          email_enabled, sms_enabled, push_enabled,
           notify_on_pending, notify_on_completed, notify_on_failed,
-          created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          channel_routing, locale, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14)
         ON CONFLICT (user_address)
         DO UPDATE SET
           email = EXCLUDED.email,
           phone_number = EXCLUDED.phone_number,
+          push_token = EXCLUDED.push_token,
           email_enabled = EXCLUDED.email_enabled,
           sms_enabled = EXCLUDED.sms_enabled,
+          push_enabled = EXCLUDED.push_enabled,
           notify_on_pending = EXCLUDED.notify_on_pending,
           notify_on_completed = EXCLUDED.notify_on_completed,
           notify_on_failed = EXCLUDED.notify_on_failed,
+          channel_routing = EXCLUDED.channel_routing,
+          locale = EXCLUDED.locale,
           updated_at = EXCLUDED.updated_at
         RETURNING *
       `,
@@ -78,11 +83,15 @@ export async function upsertNotificationPreferences(
         input.userAddress,
         input.email ?? null,
         input.phoneNumber ?? null,
+        input.pushToken ?? null,
         input.emailEnabled,
         input.smsEnabled,
+        input.pushEnabled,
         input.notifyOnPending,
         input.notifyOnCompleted,
         input.notifyOnFailed,
+        JSON.stringify(input.channelRouting ?? null),
+        input.locale ?? null,
         createdAt,
         updatedAt,
       ]
