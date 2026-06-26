@@ -1,5 +1,4 @@
 const CACHE_NAME = "stellar-spend-v1";
-const STATIC_ASSETS = ["/", "/manifest.json", "/icons/icon-192x192.png", "/icons/icon-512x512.png", "/offline.html"];
 const OFFLINE_FALLBACK = "/offline.html";
 
 const STATIC_ASSETS = [
@@ -8,6 +7,7 @@ const STATIC_ASSETS = [
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png",
   "/icons/apple-touch-icon.png",
+  "/offline.html",
 ];
 
 // Install event - cache static assets
@@ -30,10 +30,7 @@ self.addEventListener("activate", (event) => {
       return Promise.all(
         keys
           .filter((key) => {
-            return (
-              !Object.values(CACHE_NAMES).includes(key) &&
-              key.startsWith("stellar-spend-")
-            );
+            return key !== CACHE_NAME && key.startsWith("stellar-spend-");
           })
           .map((key) => caches.delete(key))
       );
@@ -69,7 +66,7 @@ self.addEventListener("fetch", (event) => {
       return cached ?? networkFetch;
     })
   );
-}
+});
 
 // Handle messages from clients
 self.addEventListener("message", (event) => {
@@ -88,6 +85,8 @@ self.addEventListener("message", (event) => {
 self.addEventListener("sync", (event) => {
   if (event.tag === "sync-failed-transactions") {
     event.waitUntil(syncFailedTransactions());
+  } else if (event.tag === "sync-transaction-history") {
+    event.waitUntil(syncTransactionHistory());
   }
 });
 
@@ -114,6 +113,14 @@ async function syncFailedTransactions() {
     }
   } catch (err) {
     console.error("Background sync failed:", err);
+  }
+}
+
+async function syncTransactionHistory() {
+  try {
+    await notifyClients({ type: "trigger-history-sync" });
+  } catch (err) {
+    console.error("Failed to trigger history sync:", err);
   }
 }
 

@@ -352,6 +352,73 @@ post "/webhooks/stellar-spend" do
 end
 ```
 
+## Subscription Management
+
+Stellar-Spend supports managing outbound webhook subscriptions via API endpoints. This enables third-party integrators to subscribe to transaction lifecycle events.
+
+### Creating a Subscription
+
+```bash
+curl -X POST https://api.stellarspend.com/api/webhooks/subscriptions \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "endpointUrl": "https://example.com/webhooks/stellar-spend",
+    "events": ["transaction.completed", "transaction.failed"],
+    "description": "Production endpoint"
+  }'
+```
+
+Response includes the `signingSecret` — store it securely. You will need it to verify incoming webhook signatures.
+
+### Managing Subscriptions
+
+- `GET /api/webhooks/subscriptions` — List all subscriptions
+- `GET /api/webhooks/subscriptions/:id` — Get a single subscription
+- `PUT /api/webhooks/subscriptions/:id` — Update endpoint URL, events, status, or rate limit
+- `DELETE /api/webhooks/subscriptions/:id` — Delete a subscription
+
+### Delivery Log
+
+Every webhook delivery is recorded. Retrieve delivery logs:
+
+```bash
+curl -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "https://api.stellarspend.com/api/webhooks/delivery-log?subscriptionId=sub_xxx&limit=50"
+```
+
+### Replaying a Delivery
+
+To replay a failed delivery:
+
+```bash
+curl -X POST https://api.stellarspend.com/api/webhooks/subscriptions/:id/replay \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"deliveryLogId": "log_xxx"}'
+```
+
+### Subscriber Rate Limiting
+
+Each subscription has a per-minute rate limit (default 60 deliveries/minute). When exceeded, excess events are skipped and logged. Adjust via the `rateLimitMaxPerMinute` field on the subscription.
+
+### Available Events
+
+| Event | Description |
+|---|---|
+| `transaction.created` | A new transaction is created |
+| `transaction.completed` | Transaction reaches completed state |
+| `transaction.failed` | Transaction reaches failed state |
+| `payout.initiated` | Payout has been initiated |
+| `payout.completed` | Payout has settled |
+| `payout.failed` | Payout has failed |
+| `bridge.initiated` | Bridge transfer has started |
+| `bridge.completed` | Bridge transfer has completed |
+
+### Verifying Outbound Signatures
+
+Every outbound webhook includes `X-Webhook-Timestamp` and `X-Webhook-Signature` headers. Verify using the `signingSecret` returned when creating the subscription. See [Signature Verification](#signature-verification) above for the verification algorithm.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |

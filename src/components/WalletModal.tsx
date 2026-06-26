@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import type { WalletType } from "@/lib/stellar/wallet-adapter";
+import { useFocusTrap, useFocusRestore } from "@/hooks/useFocusTrap";
 
 export interface WalletModalProps {
   isOpen: boolean;
@@ -84,6 +85,9 @@ export function WalletModal({
   const firstButtonRef = useRef<HTMLButtonElement>(null);
   const [dismissed, setDismissed] = useState(false);
 
+  useFocusTrap(overlayRef, isOpen);
+  useFocusRestore(isOpen);
+
   // Focus first wallet option when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -101,37 +105,6 @@ export function WalletModal({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [isOpen, isConnecting, onClose]);
-
-  // Trap focus within modal
-  useEffect(() => {
-    if (!isOpen) return;
-    const modal = overlayRef.current;
-    if (!modal) return;
-
-    const focusable = modal.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-
-    const trap = (e: KeyboardEvent) => {
-      if (e.key !== "Tab") return;
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last?.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first?.focus();
-        }
-      }
-    };
-
-    modal.addEventListener("keydown", trap);
-    return () => modal.removeEventListener("keydown", trap);
-  }, [isOpen]);
 
   if (!isOpen) return null;
 

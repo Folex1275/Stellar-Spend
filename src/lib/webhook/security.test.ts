@@ -1,5 +1,27 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { verifyWebhookSignature, generateOutgoingSignature, buildSignedWebhookHeaders } from './security';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  verifyWebhookSignature,
+  verifyProviderSignature,
+  generateOutgoingSignature,
+  buildSignedWebhookHeaders,
+  WebhookSecurity,
+} from './security';
+
+vi.mock('@/lib/db/client', () => ({
+  pool: {
+    query: vi.fn().mockResolvedValue({ rows: [] }),
+  },
+}));
+
+vi.mock('@/lib/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    withContext: vi.fn().mockReturnThis(),
+  },
+}));
 
 const SECRET = 'test-secret-key';
 const PAYLOAD = '{"event":"payment_order.settled","data":{"id":"order_123"}}';
@@ -32,7 +54,7 @@ describe('verifyWebhookSignature', () => {
 
   it('rejects expired timestamp', async () => {
     const sig = await makeSignature(PAYLOAD, SECRET);
-    const oldTimestamp = String(Date.now() - 10 * 60 * 1000); // 10 minutes ago
+    const oldTimestamp = String(Date.now() - 10 * 60 * 1000);
     const result = await verifyWebhookSignature(PAYLOAD, sig, SECRET, oldTimestamp);
     expect(result.valid).toBe(false);
     expect(result.reason).toMatch(/timestamp/i);
@@ -44,16 +66,31 @@ describe('verifyWebhookSignature', () => {
     expect(result.valid).toBe(true);
   });
 
-  it('detects replay attacks', async () => {
+  it('detects replay attacks (same nonce key)', async () => {
     const sig = await makeSignature(PAYLOAD, SECRET);
     const nonce = 'unique-nonce-replay-test';
     const first = await verifyWebhookSignature(PAYLOAD, sig, SECRET, null, nonce);
     expect(first.valid).toBe(true);
-    // Second request with same nonce
     const sig2 = await makeSignature(PAYLOAD, SECRET);
     const second = await verifyWebhookSignature(PAYLOAD, sig2, SECRET, null, nonce);
     expect(second.valid).toBe(false);
     expect(second.reason).toMatch(/replay/i);
+  });
+});
+
+describe('verifyProviderSignature', () => {
+  it('accepts valid signature with timestamp and nonce options', async () => {
+    const sig = await makeSignature(PAYLOAD, SECRET);
+    const result = await verifyProviderSignature(PAYLOAD, sig, SECRET, {
+      timestamp: String(Date.now()),
+      nonce: 'provider-nonce-1',
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it('rejects with empty options', async () => {
+    const result = await verifyProviderSignature(PAYLOAD, '', SECRET, {});
+    expect(result.valid).toBe(false);
   });
 });
 
@@ -62,7 +99,7 @@ describe('generateOutgoingSignature', () => {
     const sig1 = await generateOutgoingSignature(PAYLOAD, SECRET);
     const sig2 = await generateOutgoingSignature(PAYLOAD, SECRET);
     expect(sig1).toBe(sig2);
-    expect(sig1).toHaveLength(64); // SHA-256 hex = 64 chars
+    expect(sig1).toHaveLength(64);
   });
 });
 
@@ -72,5 +109,15 @@ describe('buildSignedWebhookHeaders', () => {
     expect(headers['Content-Type']).toBe('application/json');
     expect(headers['X-Webhook-Timestamp']).toBeDefined();
     expect(headers['X-Webhook-Signature']).toHaveLength(64);
+  });
+});
+
+describe('WebhookSecurity class', () => {
+  it('exposes static methods matching function exports', async () => {
+    expect(WebhookSecurity.verifyProviderSignature).toBe(verifyProviderSignature);
+    expect(WebhookSecurity.verifyWebhookSignature).toBe(verifyWebhookSignature);
+    expect(WebhookSecurity.generateOutgoingSignature).toBe(generateOutgoingSignature);
+    expect(WebhookSecurity.buildSignedWebhookHeaders).toBe(buildSignedWebhookHeaders);
+    expect(typeof WebhookSecurity.createNonceTable).toBe('function');
   });
 });

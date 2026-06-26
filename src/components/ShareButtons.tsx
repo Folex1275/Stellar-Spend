@@ -8,7 +8,6 @@ interface ShareButtonsProps {
   amount: string;
   currency: string;
   txHash?: string;
-  recipientBank?: string;
   onShare?: (platform: SharePlatform) => void;
 }
 
@@ -50,12 +49,14 @@ export function getShareAnalytics(): Record<SharePlatform, number> {
   }
 }
 
-/** Generate a receipt image as a data URL using Canvas API */
+/**
+ * Generate a receipt image as a data URL using the Canvas API.
+ * Intentionally omits bank/account details — this image is shared publicly.
+ */
 function generateReceiptImage(
   amount: string,
   currency: string,
   txHash: string | undefined,
-  recipientBank: string | undefined,
   privacy: PrivacySettings
 ): string {
   const canvas = document.createElement('canvas');
@@ -107,7 +108,6 @@ function generateReceiptImage(
   else if (privacy.includeCurrency) row('CURRENCY', currency);
 
   if (txHash) row('TX HASH', `${txHash.slice(0, 8)}...${txHash.slice(-6)}`);
-  if (recipientBank) row('RECIPIENT', recipientBank);
   row('DATE', new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }));
   row('STATUS', '✓ COMPLETED');
 
@@ -119,7 +119,7 @@ function generateReceiptImage(
   return canvas.toDataURL('image/png');
 }
 
-export function ShareButtons({ shareUrl, amount, currency, txHash, recipientBank, onShare }: ShareButtonsProps) {
+export function ShareButtons({ shareUrl, amount, currency, txHash, onShare }: ShareButtonsProps) {
   const [copied, setCopied] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [imageGenerated, setImageGenerated] = useState(false);
@@ -183,7 +183,7 @@ export function ShareButtons({ shareUrl, amount, currency, txHash, recipientBank
   };
 
   const handleDownloadReceipt = () => {
-    const dataUrl = generateReceiptImage(amount, currency, txHash, recipientBank, privacy);
+    const dataUrl = generateReceiptImage(amount, currency, txHash, privacy);
     const a = imgLinkRef.current ?? document.createElement('a');
     a.href = dataUrl;
     a.download = `stellar-spend-receipt-${Date.now()}.png`;

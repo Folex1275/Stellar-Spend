@@ -114,6 +114,10 @@ export class LobstrAdapter implements WalletAdapter {
         return 'Lobstr wallet is not installed or unavailable. Please install it and try again.';
       if (/timeout/i.test(msg))
         return 'The wallet did not respond in time. Please try again.';
+      if (/locked/i.test(msg))
+        return 'Lobstr wallet is locked. Please unlock it.';
+      if (/invalid.*network|wrong.*network/i.test(msg))
+        return 'Wrong network selected. Please switch networks in Lobstr.';
     }
     return fallback;
   }

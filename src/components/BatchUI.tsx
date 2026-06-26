@@ -6,7 +6,7 @@ import { Button } from '@/components/design-system/Button';
 import { Card } from '@/components/design-system/Card';
 import { Badge } from '@/components/design-system/Badge';
 import { Alert } from '@/components/design-system/Alert';
-import { cn } from '@/lib/cn';
+import { DataTable, type DataTableColumn } from '@/components/DataTable';
 
 interface BatchBeneficiary {
   id: string;
@@ -105,6 +105,48 @@ export function BatchUI({ onSubmitBatch, isLoading = false }: BatchUIProps) {
     XLSX.writeFile(wb, 'stellar_spend_batch_template.csv');
   };
 
+  const batchColumns: DataTableColumn<BatchBeneficiary>[] = [
+    { key: 'name', header: 'Beneficiary', sortValue: (b) => b.name, accessor: (b) => <span className="font-medium">{b.name}</span> },
+    { key: 'accountNumber', header: 'Account', accessor: (b) => <span className="font-mono">{b.accountNumber}</span> },
+    { key: 'institution', header: 'Institution', sortValue: (b) => b.institution, accessor: (b) => b.institution },
+    {
+      key: 'amount',
+      header: 'Amount',
+      align: 'right',
+      sortValue: (b) => b.amount,
+      accessor: (b) => (
+        <span className="font-semibold">
+          {b.amount.toLocaleString()} {b.currency}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      align: 'center',
+      sortValue: (b) => b.status,
+      accessor: (b) => (
+        <Badge variant={b.status === 'success' ? 'success' : b.status === 'failed' ? 'error' : 'default'}>
+          {b.status}
+        </Badge>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      accessor: (b) => (
+        <button
+          onClick={() => removeBeneficiary(b.id)}
+          aria-label={`Remove ${b.name}`}
+          className="text-gray-400 hover:text-red-500 transition-colors"
+        >
+          ✕
+        </button>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <Card className="p-6">
@@ -131,45 +173,14 @@ export function BatchUI({ onSubmitBatch, isLoading = false }: BatchUIProps) {
 
         {beneficiaries.length > 0 ? (
           <div className="space-y-4">
-            <div className="overflow-x-auto border rounded-lg">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 uppercase text-xs">
-                  <tr>
-                    <th className="px-4 py-3">Beneficiary</th>
-                    <th className="px-4 py-3">Account</th>
-                    <th className="px-4 py-3">Institution</th>
-                    <th className="px-4 py-3 text-right">Amount</th>
-                    <th className="px-4 py-3 text-center">Status</th>
-                    <th className="px-4 py-3"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {beneficiaries.map((b) => (
-                    <tr key={b.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                      <td className="px-4 py-3 font-medium">{b.name}</td>
-                      <td className="px-4 py-3 font-mono">{b.accountNumber}</td>
-                      <td className="px-4 py-3">{b.institution}</td>
-                      <td className="px-4 py-3 text-right font-semibold">
-                        {b.amount.toLocaleString()} {b.currency}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <Badge variant={b.status === 'success' ? 'success' : b.status === 'failed' ? 'error' : 'default'}>
-                          {b.status}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button 
-                          onClick={() => removeBeneficiary(b.id)}
-                          className="text-gray-400 hover:text-red-500 transition-colors"
-                        >
-                          ✕
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              variant="light"
+              columns={batchColumns}
+              rows={beneficiaries}
+              getRowKey={(b) => b.id}
+              caption="Batch payout beneficiaries"
+              pageSize={10}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
               <div>

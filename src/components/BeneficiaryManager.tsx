@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BeneficiaryStorage, SavedBeneficiary } from '@/lib/beneficiary-storage';
 import { cn } from '@/lib/cn';
 
@@ -63,6 +63,9 @@ export function BeneficiaryManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState(emptyForm);
   const [filterGroup, setFilterGroup] = useState<string>('All');
+  const [nameSuggestions, setNameSuggestions] = useState<SavedBeneficiary[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   const reload = () => {
     const all = BeneficiaryStorage.getAllBeneficiaries();
@@ -132,6 +135,44 @@ export function BeneficiaryManager() {
   const handleUse = (id: string) => {
     incrementUsage(id);
     setMetaMap({ ...getMeta() });
+  };
+
+  const handleNameInput = (value: string) => {
+    setFormData((f) => ({ ...f, name: value }));
+    if (value.trim().length < 1) {
+      setNameSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    const query = value.toLowerCase();
+    const matches = beneficiaries.filter(
+      (b) => b.id !== editingId && b.name.toLowerCase().includes(query),
+    );
+    setNameSuggestions(matches.slice(0, 5));
+    setShowSuggestions(matches.length > 0);
+  };
+
+  const applySuggestion = (b: SavedBeneficiary) => {
+    const meta = getOrCreateMeta(b.id);
+    // Try to decrypt sensitive fields; fall back to empty strings if unavailable.
+    let accountNumber = '';
+    let bankCode = '';
+    try {
+      const decrypted = BeneficiaryStorage.decryptBeneficiary(b);
+      accountNumber = decrypted.accountNumber;
+      bankCode = decrypted.bankCode;
+    } catch {
+      // Decryption unavailable in this environment — user fills fields manually.
+    }
+    setFormData({
+      name: b.name,
+      accountNumber,
+      bankCode,
+      currency: b.currency,
+      group: meta.group,
+    });
+    setShowSuggestions(false);
+    setNameSuggestions([]);
   };
 
   const allGroups = ['All', ...GROUPS];
@@ -245,8 +286,43 @@ export function BeneficiaryManager() {
           <div className="text-[10px] text-[#777777] uppercase tracking-widest">
             {view === 'edit' ? 'Edit Beneficiary' : 'New Beneficiary'}
           </div>
+          {/* Name field with typeahead suggestions */}
+          <div className="relative" ref={suggestionsRef}>
+            <input
+              type="text"
+              placeholder="Full Name"
+              aria-label="Name"
+              aria-autocomplete="list"
+              aria-expanded={showSuggestions}
+              value={formData.name}
+              onChange={(e) => handleNameInput(e.target.value)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              className="w-full bg-[#0a0a0a] border border-[#333333] px-3 py-2 text-xs text-white focus:outline-none focus:border-[#c9a962]"
+            />
+            {showSuggestions && (
+              <ul
+                role="listbox"
+                aria-label="Saved beneficiaries"
+                className="absolute z-10 w-full border border-[#333333] bg-[#0d0d0d] mt-0.5 max-h-40 overflow-y-auto"
+              >
+                {nameSuggestions.map((b) => (
+                  <li key={b.id} role="option" aria-selected={false}>
+                    <button
+                      type="button"
+                      onMouseDown={() => applySuggestion(b)}
+                      className="w-full px-3 py-2 text-left text-xs hover:bg-[#1a1a1a] focus:bg-[#1a1a1a] focus:outline-none"
+                    >
+                      <span className="text-white">{b.name}</span>
+                      <span className="ml-2 text-[#555555]">{b.currency}</span>
+                      <span className="ml-2 text-[#444444]">••••</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           {[
-            { key: 'name', placeholder: 'Full Name', label: 'Name' },
             { key: 'accountNumber', placeholder: 'Account Number', label: 'Account Number' },
             { key: 'bankCode', placeholder: 'Bank Code', label: 'Bank Code' },
           ].map(({ key, placeholder, label }) => (

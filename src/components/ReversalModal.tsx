@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Transaction } from '@/lib/transaction-storage';
 import { TransactionStorage } from '@/lib/transaction-storage';
 import { cn } from '@/lib/cn';
+import { useFocusTrap, useFocusRestore } from '@/hooks/useFocusTrap';
 
 interface ReversalModalProps {
   transaction: Transaction;
@@ -22,6 +23,29 @@ export function ReversalModal({
   const [reason, setReason] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, isOpen);
+  useFocusRestore(isOpen);
+
+  // ESC to close
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isLoading) onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isOpen, isLoading, onClose]);
+
+  // Focus the first interactive element when the modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    const el = dialogRef.current?.querySelector<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), textarea:not([disabled])',
+    );
+    el?.focus();
+  }, [isOpen]);
 
   const isEligible = TransactionStorage.isReversalEligible(transaction);
   const maxAmount = parseFloat(transaction.amount);
@@ -59,9 +83,36 @@ export function ReversalModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-[#1a1a1a] border border-[#333333] p-6 max-w-md w-full mx-4">
-        <h2 className="text-lg font-bold text-white mb-4">Reverse Transaction</h2>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      aria-hidden="true"
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reversal-modal-title"
+        className="relative bg-[#1a1a1a] border border-[#333333] p-6 max-w-md w-full mx-4"
+      >
+        <h2
+          id="reversal-modal-title"
+          className="text-lg font-bold text-white mb-4"
+        >
+          Reverse Transaction
+        </h2>
+
+        <button
+          onClick={onClose}
+          disabled={isLoading}
+          aria-label="Close reversal dialog"
+          className={cn(
+            'absolute top-4 right-4 text-[#999999] hover:text-white transition-colors',
+            'focus:outline-none focus-visible:ring-1 focus-visible:ring-[#c9a962]',
+            isLoading && 'cursor-not-allowed opacity-40',
+          )}
+        >
+          ✕
+        </button>
 
         {!isEligible ? (
           <div className="bg-red-500/10 border border-red-500/30 p-4 text-red-400 text-sm">
@@ -70,10 +121,11 @@ export function ReversalModal({
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs text-[#999999] mb-2">
+              <label htmlFor="reversal-amount" className="block text-xs text-[#999999] mb-2">
                 Reversal Amount (max: {maxAmount})
               </label>
               <input
+                id="reversal-amount"
                 type="number"
                 step="0.01"
                 min="0"
@@ -86,10 +138,11 @@ export function ReversalModal({
             </div>
 
             <div>
-              <label className="block text-xs text-[#999999] mb-2">
+              <label htmlFor="reversal-reason" className="block text-xs text-[#999999] mb-2">
                 Reason for Reversal
               </label>
               <textarea
+                id="reversal-reason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Explain why this transaction is being reversed..."
@@ -99,7 +152,7 @@ export function ReversalModal({
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/30 p-3 text-red-400 text-xs">
+              <div role="alert" className="bg-red-500/10 border border-red-500/30 p-3 text-red-400 text-xs">
                 {error}
               </div>
             )}
@@ -108,7 +161,8 @@ export function ReversalModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 border border-[#333333] text-white text-xs hover:bg-[#222222] transition-colors"
+                disabled={isLoading}
+                className="flex-1 px-4 py-2 border border-[#333333] text-white text-xs hover:bg-[#222222] transition-colors disabled:opacity-40"
               >
                 Cancel
               </button>
@@ -119,7 +173,7 @@ export function ReversalModal({
                   'flex-1 px-4 py-2 text-xs font-semibold transition-colors',
                   isLoading
                     ? 'bg-[#666666] text-[#999999] cursor-not-allowed'
-                    : 'bg-red-600 text-white hover:bg-red-700'
+                    : 'bg-red-600 text-white hover:bg-red-700',
                 )}
               >
                 {isLoading ? 'Processing...' : 'Reverse Transaction'}
@@ -127,13 +181,6 @@ export function ReversalModal({
             </div>
           </form>
         )}
-
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-[#999999] hover:text-white"
-        >
-          ✕
-        </button>
       </div>
     </div>
   );

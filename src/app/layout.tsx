@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ToastContainer } from "@/components/Toast";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import OfflineBanner from "@/components/OfflineBanner";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { I18nProvider } from "@/lib/i18n/provider";
 import { HtmlDirSync } from "@/components/HtmlDirSync";
@@ -54,16 +55,20 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className={`${ibmPlexMono.variable} ${spaceGrotesk.variable} font-ibm-plex-mono`}>
-        <ThemeProvider>
-          <ToastProvider>
-            <ErrorBoundary>
-              {children}
-            </ErrorBoundary>
-            <ToastContainer />
-            <ServiceWorkerRegistration />
-            <PWAInstallPrompt />
-          </ToastProvider>
-        </ThemeProvider>
+        <I18nProvider>
+          <HtmlDirSync />
+          <ThemeProvider>
+            <ToastProvider>
+              <OfflineBanner />
+              <ErrorBoundary>
+                {children}
+              </ErrorBoundary>
+              <ToastContainer />
+              <ServiceWorkerRegistration />
+              <PWAInstallPrompt />
+            </ToastProvider>
+          </ThemeProvider>
+        </I18nProvider>
       </body>
     </html>
   );

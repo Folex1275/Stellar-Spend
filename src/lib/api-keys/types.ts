@@ -7,7 +7,18 @@ export type ApiKeyScope =
   | 'wallets:read'
   | 'webhooks:read'
   | 'webhooks:write'
-  | 'admin';
+  | 'admin'
+  | 'admin:*'
+  | 'read:quotes'
+  | 'read:transactions'
+  | 'write:transactions'
+  | 'write:payouts'
+  | 'read:analytics'
+  | 'read:wallets'
+  | 'read:webhooks'
+  | 'write:webhooks'
+  | 'read:api-keys'
+  | 'write:api-keys';
 
 export interface ApiKeyRecord {
   id: string;

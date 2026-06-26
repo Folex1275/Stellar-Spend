@@ -3,7 +3,7 @@ import type {
   PayoutOrderResponse, 
   PayoutStatus 
 } from '../types';
-import { PayoutProviderAdapter } from './payout-provider';
+import type { PayoutProviderAdapter, PayoutHealth } from './payout-provider';
 
 const PAYCREST_STATUS_MAP: Record<string, PayoutStatus> = {
   'payment_order.pending':   'pending',
@@ -131,6 +131,16 @@ export class PaycrestAdapter implements PayoutProviderAdapter {
       return response?.accountName || response?.data || '';
     } catch {
       return '';
+    }
+  }
+
+  async getHealth(): Promise<PayoutHealth> {
+    const start = Date.now();
+    try {
+      await this.fetch('/sender/currencies');
+      return { ok: true, latencyMs: Date.now() - start };
+    } catch (err) {
+      return { ok: false, latencyMs: Date.now() - start, error: err instanceof Error ? err.message : 'Unknown error' };
     }
   }
 

@@ -7,6 +7,7 @@ import {
 } from '@/lib/api-keys/service';
 import type { ApiKeyRecord } from '@/lib/api-keys/types';
 import { getClientIp } from '@/lib/offramp/utils/rate-limiter';
+import { enforceScope } from '@/lib/middleware/scope-enforcement.middleware';
 
 function extractApiKey(request: NextRequest): string | null {
   const xApiKey = request.headers.get('x-api-key');
@@ -52,6 +53,20 @@ export async function withApiKeyAuth(
     }
     response.headers.set('X-API-Key-Id', apiKey.id);
     return response;
+  }
+
+  const scopeCheck = enforceScope(request, apiKey);
+  if (scopeCheck) {
+    await recordApiKeyUsage({
+      apiKeyId: apiKey.id,
+      method: request.method,
+      path: request.nextUrl.pathname,
+      statusCode: 403,
+      limited: false,
+      ipAddress: getClientIp(request),
+      metadata: { reason: 'insufficient_scope' },
+    });
+    return scopeCheck;
   }
 
   const response = await handler(apiKey);

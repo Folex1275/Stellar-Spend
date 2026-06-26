@@ -190,6 +190,7 @@ export async function rotateApiKey(id: string): Promise<ApiKeyWithSecret | null>
 
   const rotated = await createApiKey({
     name: `${existing.name} (rotated)`,
+    scopes: existing.scopes,
     rateLimitMaxRequests: existing.rateLimitMaxRequests,
     rateLimitWindowMs: existing.rateLimitWindowMs,
     expiresAt: existing.expiresAt,

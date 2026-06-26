@@ -102,23 +102,36 @@ Rate-limited responses return `429` with a `Retry-After` header (seconds) and `X
 
 ## Idempotency
 
-The following mutating endpoints support the `Idempotency-Key` header:
+All **mutating** endpoints that change money or state **require** an `Idempotency-Key` header. Read-only endpoints (GET, and POST routes that only fetch data) do not.
 
-| Endpoint | Behavior |
-|---|---|
-| `POST /api/offramp/paycrest/order` | Replays the original order response for safe retries |
-| `POST /api/offramp/execute-payout` | Replays the original transaction creation result |
-| `POST /api/transactions` | Replays the original transaction write response |
-| `PATCH /api/transactions/[id]` | Replays the original transaction update response |
+### Enforced Endpoints
 
-### How it works
+| Endpoint | Method | Reason |
+|---|---|---|
+| `POST /api/offramp/paycrest/order` | POST | Creates Paycrest payout order — replays original response |
+| `POST /api/offramp/execute-payout` | POST | Saves transaction record — replays original creation |
+| `POST /api/offramp/bridge/submit-soroban` | POST | Submits on-chain Soroban transaction — prevents double-submit |
+| `POST /api/offramp/reverse` | POST | Initiates a reversal — prevents duplicate reversal requests |
+| `PATCH /api/offramp/reverse` | PATCH | Approves/rejects a reversal — prevents duplicate admin actions |
+| `POST /api/offramp/refund` | POST | Processes a refund — prevents issuing a refund twice |
+| `POST /api/offramp/insurance` | POST | Purchases insurance / files claim — prevents duplicate purchases |
+| `POST /api/offramp/recurring` | POST | Creates recurring schedule — prevents duplicate schedules |
+| `POST /api/offramp/batch` | POST | Creates/executes batch — prevents duplicate batch creation |
+| `POST /api/transactions` | POST | Saves transaction — replays original write |
+| `PATCH /api/transactions/[id]` | PATCH | Updates transaction — replays original update |
+| `POST /api/onramp/order` | POST | Creates on-ramp order — prevents duplicate orders |
 
-- Send a unique `Idempotency-Key` header with the first request.
-- Retrying the exact same request with the same key returns the stored response instead of re-running the operation.
-- Reusing the same key with a different request body returns `409 Conflict`.
-- Reusing the same key while the first request is still in progress also returns `409 Conflict`.
-- Completed entries are kept for `IDEMPOTENCY_TTL_MS` milliseconds. In-progress locks use `IDEMPOTENCY_LOCK_TTL_MS`.
-- Server responses with `5xx` status are not cached, so clients can safely retry transient failures.
+### Contract
+
+1. **Requirement:** Clients **must** send an `Idempotency-Key` header (e.g., a UUID v4) on every mutating request.
+2. **First request:** Processed normally; response is cached. Response includes `Idempotency-Status: created`.
+3. **Replay (same key, same body):** Returns the cached response from the first request. Response includes `Idempotency-Status: replayed`.
+4. **Conflict (same key, different body):** Returns `409 Conflict`. Response includes `Idempotency-Status: conflict`.
+5. **In-progress (same key, request still processing):** Returns `409 Conflict` with `Idempotency-Status: conflict`.
+6. **5xx responses are not cached** — clients can safely retry transient failures with the same key.
+7. **TTL:** Completed entries expire after `IDEMPOTENCY_TTL_MS` (default: 24h). In-progress locks expire after `IDEMPOTENCY_LOCK_TTL_MS` (default: 5min).
+8. **Expired entries** are cleaned up on each idempotency check via `DELETE FROM idempotency_keys WHERE expires_at <= $1`.
+9. **Key scope:** The key is scoped to `(idempotency_key, method, path)` — the same key can be reused across different endpoints.
 
 ### Example
 

@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useRef,
   useState,
   useCallback,
   useMemo,
@@ -10,6 +11,8 @@ import {
 import { cn } from "@/lib/cn";
 import type { FxRate } from "@/app/api/fx-rates/route";
 import React from "react";
+
+const QUOTE_TTL = 30; // seconds before a fetched rate is considered stale
 
 export default function CurrencyConverter({
   className,
@@ -26,6 +29,10 @@ export default function CurrencyConverter({
   const [currencies, setCurrencies] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [quoteSecondsLeft, setQuoteSecondsLeft] = useState(QUOTE_TTL);
+  const [isStale, setIsStale] = useState(false);
+  const [rateUpdated, setRateUpdated] = useState(false);
+  const rateUpdatedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchCurrencies = useCallback(async () => {
     try {
@@ -48,6 +55,9 @@ export default function CurrencyConverter({
       if (res.ok) {
         const data: FxRate = await res.json();
         setRate(data.rate);
+        if (rateUpdatedTimer.current) clearTimeout(rateUpdatedTimer.current);
+        setRateUpdated(true);
+        rateUpdatedTimer.current = setTimeout(() => setRateUpdated(false), 1_500);
       }
     } catch (error) {
       console.error("Failed to fetch rate:", error);
@@ -59,9 +69,30 @@ export default function CurrencyConverter({
   useEffect(() => {
     fetchCurrencies();
     fetchRate();
-    const interval = setInterval(fetchRate, 30000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchRate, 30_000);
+    return () => {
+      clearInterval(interval);
+      if (rateUpdatedTimer.current) clearTimeout(rateUpdatedTimer.current);
+    };
   }, [toCurrency, fetchCurrencies, fetchRate]);
+
+  // Restart the countdown whenever a new rate arrives
+  useEffect(() => {
+    if (rate === null) return;
+    setIsStale(false);
+    setQuoteSecondsLeft(QUOTE_TTL);
+    const id = setInterval(() => {
+      setQuoteSecondsLeft((prev) => {
+        if (prev <= 1) {
+          setIsStale(true);
+          clearInterval(id);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1_000);
+    return () => clearInterval(id);
+  }, [rate]);
 
   const handleFromAmountChange = useCallback(
     (value: string) => {
@@ -183,12 +214,41 @@ export default function CurrencyConverter({
         </div>
       </div>
 
-      {/* Rate Info */}
+      {/* Rate Info with countdown */}
       {rate && (
         <div className="mb-4 rounded bg-gray-50 p-3 text-sm dark:bg-gray-800">
-          <p className="text-gray-600 dark:text-gray-400">
-            1 {fromCurrency} = {rate.toFixed(2)} {toCurrency}
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-gray-600 dark:text-gray-400">
+              1 {fromCurrency} = {rate.toFixed(2)} {toCurrency}
+            </p>
+            <span
+              className={cn(
+                "shrink-0 text-xs tabular-nums transition-colors",
+                rateUpdated
+                  ? "font-medium text-green-500"
+                  : isStale
+                  ? "text-amber-500"
+                  : "text-gray-400 dark:text-gray-500",
+              )}
+              aria-live="polite"
+            >
+              {rateUpdated
+                ? "Rate updated"
+                : isStale
+                ? "Rate expired"
+                : `Refreshes in ${quoteSecondsLeft}s`}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Stale rate warning */}
+      {isStale && !loading && (
+        <div
+          role="alert"
+          className="mb-4 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-600 dark:text-amber-400"
+        >
+          The displayed rate has expired. A fresh rate will load automatically — wait a moment before submitting.
         </div>
       )}
 
@@ -205,13 +265,17 @@ export default function CurrencyConverter({
         </div>
       </div>
 
-      {/* Copy Button */}
+      {/* Copy Button — disabled when rate is stale to prevent copying an outdated conversion */}
       <button
         onClick={copyResult}
+        disabled={isStale || !toAmount}
+        title={isStale ? "Wait for the rate to refresh before copying" : undefined}
         className={cn(
           "w-full rounded px-4 py-2 font-medium transition-colors",
           copied
             ? "bg-green-500 text-white"
+            : isStale
+            ? "cursor-not-allowed bg-gray-300 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
             : "bg-blue-500 text-white hover:bg-blue-600",
         )}
       >

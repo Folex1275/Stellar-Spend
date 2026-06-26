@@ -1,5 +1,5 @@
 import { Language, TranslationKeys } from './types';
-import { en, es, fr, zh, ar, pt } from './translations';
+import { en, es, fr, zh, ar, pt, sw } from './translations';
 
 const translations: Record<Language, TranslationKeys> = {
   en,
@@ -8,7 +8,10 @@ const translations: Record<Language, TranslationKeys> = {
   zh,
   ar,
   pt,
+  sw,
 };
+
+const RTL_LANGUAGES: Language[] = ['ar'];
 
 export class I18n {
   private currentLanguage: Language = 'en';
@@ -53,7 +56,7 @@ export class I18n {
   }
 
   isRTL(): boolean {
-    return this.currentLanguage === 'ar';
+    return RTL_LANGUAGES.includes(this.currentLanguage);
   }
 }
 

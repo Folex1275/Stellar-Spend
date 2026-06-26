@@ -19,7 +19,11 @@ export class FreighterAdapter implements WalletAdapter {
 
   get isAvailable(): boolean {
     if (typeof window === 'undefined') return false;
-    return freighterApi.isConnected();
+    try {
+      return freighterApi.isConnected();
+    } catch {
+      return false;
+    }
   }
 
   async connect(): Promise<WalletConnection> {
@@ -85,6 +89,10 @@ export class FreighterAdapter implements WalletAdapter {
         return 'The wallet did not respond in time. Please try again.';
       if (/testnet|mainnet/i.test(msg))
         return 'Freighter is set to Testnet. Please switch to Mainnet.';
+      if (/locked/i.test(msg))
+        return 'Freighter wallet is locked. Please unlock it.';
+      if (/invalid.*network|wrong.*network/i.test(msg))
+        return 'Wrong network selected. Please switch networks in Freighter.';
     }
     return fallback;
   }

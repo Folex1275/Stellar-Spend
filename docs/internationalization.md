@@ -114,7 +114,9 @@ interface TranslationKeys {
 | `es` | Spanish   | No  |
 | `fr` | French    | No  |
 | `zh` | Chinese   | No  |
+| `pt` | Portuguese| No  |
 | `ar` | Arabic    | Yes |
+| `sw` | Swahili   | No  |
 
 ### Adding a key to an existing language
 
