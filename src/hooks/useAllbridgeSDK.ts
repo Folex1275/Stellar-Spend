@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 'use client';
 
 import { useMemo } from 'react';
@@ -27,7 +28,7 @@ async function initializeAllbridgeSDK() {
     
     return sdk;
   } catch (error) {
-    console.error('Failed to initialize Allbridge SDK:', error);
+    logger.error('Failed to initialize Allbridge SDK:', {}, error);
     throw error;
   }
 }

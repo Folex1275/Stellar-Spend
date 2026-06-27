@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { Database } from 'postgres';
 
 export interface SorobanEvent {
@@ -95,7 +96,7 @@ export class SorobanEventIndexer {
         const events = await this.fetchContractEvents(contractId, state.lastProcessedLedger);
         eventCount += await this.persistEvents(events);
       } catch (error) {
-        console.error(`Failed to index events for contract ${contractId}:`, error);
+        logger.error(`Failed to index events for contract ${contractId}:`, {}, error);
       }
     }
 
@@ -129,7 +130,7 @@ export class SorobanEventIndexer {
       const result = await response.json();
 
       if (result.error) {
-        console.error('Event fetch error:', result.error);
+        logger.error('Event fetch error:', {}, result.error);
         return [];
       }
 
@@ -144,7 +145,7 @@ export class SorobanEventIndexer {
         indexed: false,
       }));
     } catch (error) {
-      console.error('Failed to fetch contract events:', error);
+      logger.error('Failed to fetch contract events:', {}, error);
       return [];
     }
   }
@@ -170,7 +171,7 @@ export class SorobanEventIndexer {
           await this.mapEventToTransaction(event);
         }
       } catch (error) {
-        console.error(`Failed to persist event ${event.id}:`, error);
+        logger.error(`Failed to persist event ${event.id}:`, {}, error);
       }
     }
 
@@ -191,7 +192,7 @@ export class SorobanEventIndexer {
         `;
       }
     } catch (error) {
-      console.error(`Failed to map event to transaction:`, error);
+      logger.error(`Failed to map event to transaction:`, {}, error);
     }
   }
 

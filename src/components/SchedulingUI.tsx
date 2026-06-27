@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -30,7 +31,7 @@ export function SchedulingUI({ userId }: SchedulingUIProps) {
       const data = await res.json();
       setScheduled(data.scheduled || []);
     } catch (error) {
-      console.error('Failed to fetch scheduled transactions', error);
+      logger.error('Failed to fetch scheduled transactions', {}, error);
     }
   };
 
@@ -54,7 +55,7 @@ export function SchedulingUI({ userId }: SchedulingUIProps) {
       setAmount('');
       setScheduledFor('');
     } catch (error) {
-      console.error('Failed to schedule transaction', error);
+      logger.error('Failed to schedule transaction', {}, error);
     }
   };
 
@@ -67,7 +68,7 @@ export function SchedulingUI({ userId }: SchedulingUIProps) {
       });
       setScheduled(scheduled.filter((s) => s.id !== id));
     } catch (error) {
-      console.error('Failed to cancel scheduled transaction', error);
+      logger.error('Failed to cancel scheduled transaction', {}, error);
     }
   };
 

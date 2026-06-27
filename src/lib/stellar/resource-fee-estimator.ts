@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { Account, Keypair, Networks, Operation, TransactionBuilder } from 'stellar-sdk';
 
 interface ResourceFeeEstimate {
@@ -44,7 +45,7 @@ export class ResourceFeeEstimator {
 
       return this.calculateFeeEstimate(simulation);
     } catch (error) {
-      console.error('Failed to estimate resource fees:', error);
+      logger.error('Failed to estimate resource fees:', {}, error);
       return this.getDefaultEstimate();
     }
   }
@@ -85,7 +86,7 @@ export class ResourceFeeEstimator {
       const result = await response.json();
 
       if (result.error) {
-        console.error('Simulation error:', result.error);
+        logger.error('Simulation error:', {}, result.error);
         return { footprint: { readBytes: 0, writeBytes: 0 }, estimatedFee: 0, error: result.error.message };
       }
 
@@ -98,7 +99,7 @@ export class ResourceFeeEstimator {
         estimatedFee: resultXdr?.minResourceFee || BASE_FEE_STROOPS,
       };
     } catch (error) {
-      console.error('Simulation request failed:', error);
+      logger.error('Simulation request failed:', {}, error);
       return { footprint: { readBytes: 0, writeBytes: 0 }, estimatedFee: 0, error: String(error) };
     }
   }

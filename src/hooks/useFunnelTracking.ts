@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 "use client";
 
 import { useCallback, useRef } from "react";
@@ -61,7 +62,7 @@ export function useFunnelTracking() {
       };
 
       if (process.env.NODE_ENV === "development") {
-        console.log("[Funnel]", payload);
+        logger.info("[Funnel]", payload);
       }
 
       // Fire-and-forget to the analytics endpoint

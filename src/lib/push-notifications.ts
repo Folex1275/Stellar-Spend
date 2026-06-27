@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 "use client";
 
 import { useEffect, useState } from "react";
@@ -24,7 +25,7 @@ export function usePushNotifications() {
 
   const requestPermission = async () => {
     if (!permission.isSupported) {
-      console.warn("Push notifications not supported");
+      logger.warn("Push notifications not supported");
       return false;
     }
 
@@ -33,14 +34,14 @@ export function usePushNotifications() {
       setPermission((prev) => ({ ...prev, status: result as any }));
       return result === "granted";
     } catch (err) {
-      console.error("Failed to request notification permission:", err);
+      logger.error("Failed to request notification permission:", {}, err);
       return false;
     }
   };
 
   const sendNotification = async (title: string, options?: NotificationOptions) => {
     if (!permission.isSupported || permission.status !== "granted") {
-      console.warn("Notifications not permitted");
+      logger.warn("Notifications not permitted");
       return;
     }
 
@@ -52,7 +53,7 @@ export function usePushNotifications() {
         ...options,
       });
     } catch (err) {
-      console.error("Failed to send notification:", err);
+      logger.error("Failed to send notification:", {}, err);
     }
   };
 

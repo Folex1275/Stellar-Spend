@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { env } from '@/lib/env';
 import { extractErrorMessage } from '@/lib/offramp/utils/errors';
@@ -121,7 +122,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('Bridge status error:', error);
+    logger.error('Bridge status error:', {}, error);
     const message = extractErrorMessage(error);
 
     // Return stale cache entry with upstreamError if available

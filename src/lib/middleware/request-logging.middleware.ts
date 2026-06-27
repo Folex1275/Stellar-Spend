@@ -23,6 +23,9 @@ export function requestLoggingMiddleware(handler: (req: NextRequest) => Promise<
       req.headers.get('x-request-id') ??
       `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
+    // Attach requestId to the request object for downstream access
+    req.requestId = requestId;
+
     const startTime = Date.now();
     const log = logger.withContext({ requestId });
 

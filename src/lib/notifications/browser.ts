@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import type { NotificationContext } from '@/lib/notifications/types';
 
 /**
@@ -9,7 +10,7 @@ export function showBrowserNotification(
 ): void {
   // Check if notifications are supported
   if (!('Notification' in window)) {
-    console.warn('Browser notifications are not supported in this browser.');
+    logger.warn('Browser notifications are not supported in this browser.');
     return;
   }
 

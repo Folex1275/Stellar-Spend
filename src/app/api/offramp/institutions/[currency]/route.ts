@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { env } from '@/lib/env';
 import { getCorridorInstitutions, getCorridorConfig } from '@/lib/corridor-config';
@@ -50,7 +51,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ currenc
 
     return NextResponse.json(institutions);
   } catch (err: unknown) {
-    console.error('Error fetching institutions from Paycrest:', err);
+    logger.error('Error fetching institutions from Paycrest:', {}, err);
 
     // Fallback to corridor-config institutions when Paycrest is unreachable
     const corridorConfig = getCorridorConfig(currency);

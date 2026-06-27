@@ -1,8 +1,9 @@
 /**
  * Structured request logging utility
- * Logs API requests with method, path, status, duration, and errors
- * Masks sensitive fields to prevent data leaks
+ * Delegates to the centralized logger with correlation ID support.
  */
+
+import { logger, redactSensitive } from '@/lib/logger';
 
 export interface RequestLog {
     requestId: string;
@@ -10,25 +11,13 @@ export interface RequestLog {
     method: string;
     path: string;
     statusCode?: number;
-    duration: number; // milliseconds
+    duration: number;
     error?: string;
     errorStack?: string;
 }
 
-// Sensitive field patterns to mask
-const SENSITIVE_PATTERNS = [
-    'api[_-]?key',
-    'private[_-]?key',
-    'secret',
-    'password',
-    'token',
-    'authorization',
-    'x-api-key',
-];
-
 /**
  * Generate a unique request ID for tracing
- * Simple UUID v4 implementation without external dependency
  */
 export function generateRequestId(): string {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -39,37 +28,7 @@ export function generateRequestId(): string {
 }
 
 /**
- * Mask sensitive values in an object
- */
-function maskSensitiveData(obj: unknown): unknown {
-    if (typeof obj !== 'object' || obj === null) {
-        return obj;
-    }
-
-    if (Array.isArray(obj)) {
-        return obj.map(maskSensitiveData);
-    }
-
-    const masked: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-        const isSensitive = SENSITIVE_PATTERNS.some((pattern) =>
-            new RegExp(pattern, 'i').test(key)
-        );
-
-        if (isSensitive) {
-            masked[key] = '[REDACTED]';
-        } else if (typeof value === 'object' && value !== null) {
-            masked[key] = maskSensitiveData(value);
-        } else {
-            masked[key] = value;
-        }
-    }
-
-    return masked;
-}
-
-/**
- * Log a structured API request
+ * Log a structured API request via the centralized logger
  */
 export function logRequest(log: RequestLog): void {
     const logEntry = {
@@ -77,12 +36,16 @@ export function logRequest(log: RequestLog): void {
         timestamp: new Date(log.timestamp).toISOString(),
     };
 
-    console.log(JSON.stringify(logEntry));
+    const level = log.statusCode && log.statusCode >= 500 ? 'error'
+        : log.statusCode && log.statusCode >= 400 ? 'warn'
+        : 'info';
+
+    logger.withContext({ requestId: log.requestId })[level]('request.log', redactSensitive(logEntry));
 }
 
 /**
- * Create a request logger middleware
- * Returns a function that logs request details
+ * Create a request logger middleware.
+ * Returns a function that logs request details via the centralized logger.
  */
 export function createRequestLogger(requestId: string, method: string, path: string) {
     const startTime = Date.now();
@@ -123,5 +86,5 @@ export function createRequestLogger(requestId: string, method: string, path: str
  * Mask sensitive data in request/response bodies
  */
 export function maskRequestBody(body: unknown): unknown {
-    return maskSensitiveData(body);
+    return redactSensitive(body);
 }

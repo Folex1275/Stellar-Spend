@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextResponse, type NextRequest } from 'next/server';
 import { env } from '@/lib/env';
 import { validateAmount } from '@/lib/offramp/utils/validation';
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
     const quote = buildQuote(destinationAmount, rate, currency, '0', '0', 300);
     return NextResponse.json(quote);
   } catch (error) {
-    console.error('Quote fetch error:', error);
+    logger.error('Quote fetch error:', {}, error);
     const message = error instanceof Error ? error.message : 'Unknown error';
     if (message.includes('Invalid') || message.includes('less than')) {
       return NextResponse.json({ error: message }, { status: 400 });

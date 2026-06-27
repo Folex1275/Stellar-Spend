@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import crypto from "crypto";
 
 export type AlertType = "above" | "below";
@@ -215,7 +216,7 @@ export class PriceAlertStorage {
           onAlert(triggered);
         }
       } catch (error) {
-        console.error("Price alert check failed:", error);
+        logger.error("Price alert check failed:", {}, error);
       }
     }, this.POLL_INTERVAL);
   }

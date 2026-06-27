@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Sync Storage
  * Manages client-side sync state and metadata for transaction history synchronization
@@ -98,7 +99,7 @@ export class SyncStorage {
       allMetadata[transactionId] = metadata;
       localStorage.setItem(SYNC_METADATA_KEY, JSON.stringify(allMetadata));
     } catch {
-      console.error('Failed to set sync metadata:', transactionId);
+      logger.error('Failed to set sync metadata:', {}, transactionId);
     }
   }
 
@@ -137,7 +138,7 @@ export class SyncStorage {
       
       localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(filtered));
     } catch (err) {
-      console.error('Failed to add to sync queue:', err);
+      logger.error('Failed to add to sync queue:', {}, err);
     }
   }
 
@@ -174,7 +175,7 @@ export class SyncStorage {
       const filtered = queue.filter(item => item.transactionId !== transactionId);
       localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(filtered));
     } catch (err) {
-      console.error('Failed to remove from sync queue:', err);
+      logger.error('Failed to remove from sync queue:', {}, err);
     }
   }
 

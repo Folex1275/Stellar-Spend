@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
     logger.logSuccess(200);
     return response;
   } catch (error: any) {
-    console.error('Build TX error:', error);
+    logger.error('Build TX error:', {}, error);
 
     const message = extractErrorMessage(error);
 

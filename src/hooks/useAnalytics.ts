@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 "use client";
 
 import { useEffect, useCallback } from "react";
@@ -31,7 +32,7 @@ export function useAnalytics(config: Partial<AnalyticsConfig> = {}) {
     (event: AnalyticsEvent) => {
       if (!finalConfig.enabled) {
         if (finalConfig.debug) {
-          console.log("[Analytics Debug]", event);
+          logger.info("[Analytics Debug]", event);
         }
         return;
       }
@@ -57,7 +58,7 @@ export function useAnalytics(config: Partial<AnalyticsConfig> = {}) {
           keepalive: true,
         }).catch((err) => {
           if (finalConfig.debug) {
-            console.error("[Analytics Error]", err);
+            logger.error("[Analytics Error]", {}, err);
           }
         });
       }

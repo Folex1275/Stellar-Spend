@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { disputeRepository } from '@/lib/repositories/dispute-repository';
 import { DisputeStatus, DisputeUpdate } from '@/types/disputes';
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(disputes);
   } catch (error) {
-    console.error('Error fetching disputes:', error);
+    logger.error('Error fetching disputes', {}, error);
     return NextResponse.json(
       { error: 'Failed to fetch disputes' },
       { status: 500 }
@@ -38,7 +39,7 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json(dispute);
   } catch (error) {
-    console.error('Error updating dispute:', error);
+    logger.error('Error updating dispute', {}, error);
     return NextResponse.json(
       { error: 'Failed to update dispute' },
       { status: 500 }

@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { globalContainer } from '@/lib/di';
 import { SERVICE_KEYS } from '@/lib/di/registry';
@@ -37,7 +38,7 @@ export async function GET(
       preview,
     });
   } catch (error) {
-    console.error('Error fetching share:', error);
+    logger.error('Error fetching share:', {}, error);
     return NextResponse.json(
       { error: 'Failed to fetch share' },
       { status: 500 }

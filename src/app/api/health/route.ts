@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextResponse } from "next/server";
 import { performHealthCheck } from "@/lib/health-check";
 
@@ -9,7 +10,7 @@ export async function GET() {
     const statusCode = healthCheck.status === 'healthy' ? 200 : healthCheck.status === 'degraded' ? 200 : 503;
     return NextResponse.json(healthCheck, { status: statusCode });
   } catch (error) {
-    console.error('Health check failed:', error);
+    logger.error('Health check failed:', {}, error);
     return NextResponse.json(
       {
         status: 'unhealthy',

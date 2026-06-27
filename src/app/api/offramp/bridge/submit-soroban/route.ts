@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { decodeTxResultXdr, extractErrorMessage } from '@/lib/offramp/utils/errors';
 import { withIdempotency } from '@/lib/idempotency';
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
         const errorMessage = decodeTxResultXdr(result?.errorResultXdr);
 
         if (result?.diagnosticEventsXdr) {
-          console.error('Diagnostic events:', result.diagnosticEventsXdr);
+          logger.error('Diagnostic events:', {}, result.diagnosticEventsXdr);
         }
 
         return NextResponse.json(

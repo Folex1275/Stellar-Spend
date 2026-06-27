@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 "use client";
 
 import { useEffect, useState } from "react";
@@ -41,7 +42,7 @@ export default function ServiceWorkerRegistration() {
 
         return () => clearInterval(interval);
       } catch (error) {
-        console.error("Service Worker registration failed:", error);
+        logger.error("Service Worker registration failed:", {}, error);
       }
     };
 

@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 "use client";
 
 import { useEffect, useState } from "react";
@@ -54,7 +55,7 @@ export default function PWAInstallPrompt() {
       setShowPrompt(false);
       setDeferredPrompt(null);
     } catch (err) {
-      console.error("Installation failed:", err);
+      logger.error("Installation failed:", {}, err);
     }
   };
 

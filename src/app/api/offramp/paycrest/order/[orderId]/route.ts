@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { env } from '@/lib/env';
 
@@ -49,7 +50,7 @@ export async function GET(
       },
     });
   } catch (err: unknown) {
-    console.error('Error fetching Paycrest order status:', err);
+    logger.error('Error fetching Paycrest order status:', {}, err);
 
     if (err instanceof PaycrestHttpError) {
       if (err.status === 404) {

@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
       const normalizedAmount = Math.floor(amount * 1e6) / 1e6;
       const normalizedRate = Number(rate.toFixed(6));
 
-      console.log('[paycrest/order] amount normalization', {
+      logger.info('[paycrest/order] amount normalization', {
         raw: { amount, rate },
         normalized: { amount: normalizedAmount, rate: normalizedRate },
       });
@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
       logger.logSuccess(200);
       return response;
     } catch (err: unknown) {
-      console.error('Error creating Paycrest order:', err);
+      logger.error('Error creating Paycrest order:', {}, err);
 
       if (err instanceof PaycrestHttpError) {
         logger.logError(err.status, err.message);

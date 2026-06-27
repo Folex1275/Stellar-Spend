@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -82,7 +83,7 @@ export function QRScanner({ onScan, onError }: QRScannerProps) {
           setFlashlightAvailable(!!capabilities.torch);
         }
       } catch (e) {
-        console.warn('Could not check flashlight availability', e);
+        logger.warn('Could not check flashlight availability', e);
       }
 
       // Start decoding
@@ -112,7 +113,7 @@ export function QRScanner({ onScan, onError }: QRScannerProps) {
         } else if (err) {
           // Ignore errors that are not permanent
           if (!(err instanceof NotFoundException)) {
-            console.warn('QR scan error', err);
+            logger.warn('QR scan error', err);
           }
         }
         // Continue scanning
@@ -161,7 +162,7 @@ export function QRScanner({ onScan, onError }: QRScannerProps) {
       await track.applyConstraints({ advanced: [{ torch: newState }] });
       setFlashlightOn(newState);
     } catch (err) {
-      console.error('Failed to toggle flashlight', err);
+      logger.error('Failed to toggle flashlight', {}, err);
     }
   };
 
@@ -232,7 +233,7 @@ export function QRScanner({ onScan, onError }: QRScannerProps) {
         // We could store and let user select, but for simplicity we'll just use the first rear camera
         // For now, we don't implement camera selection UI, but we can add later
       } catch (err) {
-        console.error('Error enumerating cameras', err);
+        logger.error('Error enumerating cameras', {}, err);
       }
     };
 

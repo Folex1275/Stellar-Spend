@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { onrampProviderRegistry } from '@/lib/onramp/adapters/provider-registry';
 import { bridgeFromBaseToStellar, pollBridgeStatus } from '@/lib/onramp/utils/bridge';
@@ -208,7 +209,7 @@ export class OnrampService {
         await this.handleBridgeCompleted(orderId);
         break;
       default:
-        console.warn(`Unhandled onramp webhook event: ${payload.event}`);
+        logger.warn(`Unhandled onramp webhook event: ${payload.event}`);
     }
   }
 
