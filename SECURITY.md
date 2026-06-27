@@ -120,6 +120,31 @@ Use this checklist before every production deployment.
 
 ---
 
+## 6. Threat Model & Audit
+
+A comprehensive threat model (assets, actors, attack surfaces, STRIDE analysis) lives in [`docs/threat-model.md`](./docs/threat-model.md).
+
+**Pre-mainnet gate:** No deployment to mainnet is permitted until all High/Critical findings in the threat model are resolved and an external audit summary is published.
+
+### Automated Static Analysis
+
+Smart contracts are analysed on every PR via `.github/workflows/contract-audit.yml`:
+
+- `cargo clippy -D warnings` — Rust lints treated as errors
+- `cargo audit` — checks `Cargo.lock` against the RustSec advisory database
+- `cargo fmt --check` — enforces consistent formatting
+
+### External Audit
+
+Before mainnet deployment, engage an external auditor. After triage:
+
+1. Fix all High/Critical findings.
+2. Publish the audit report in `docs/audit/` (redacted if needed).
+3. Re-run all tests and static analysis.
+4. Update the threat model status table.
+
+---
+
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability, please do **not** open a public GitHub issue. Contact the maintainer directly via Telegram: [t.me/Xoulomon](https://t.me/Xoulomon).

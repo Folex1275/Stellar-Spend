@@ -1,5 +1,5 @@
 [workspace]
-members = ["escrow", "fee-manager"]
+members = ["escrow", "fee-manager", "multisig-authority"]
 resolver = "2"
 
 [profile.release]
