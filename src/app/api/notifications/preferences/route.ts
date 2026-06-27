@@ -13,11 +13,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const preferences = await getNotificationPreferences(userAddress);
-    if (!preferences) {
-      return NextResponse.json({ data: null }, { status: 200 });
-    }
-
-    return NextResponse.json({ data: preferences }, { status: 200 });
+    return NextResponse.json({ data: preferences ?? null }, { status: 200 });
   } catch (error) {
     return ErrorHandler.serverError(error);
   }
@@ -31,7 +27,7 @@ export async function PUT(request: NextRequest) {
     return ErrorHandler.validation('Invalid JSON body');
   }
 
-  const userAddress = body.userAddress;
+  const { userAddress } = body;
   if (!userAddress || typeof userAddress !== 'string') {
     return ErrorHandler.validation('userAddress is required');
   }
@@ -41,11 +37,18 @@ export async function PUT(request: NextRequest) {
       userAddress,
       email: typeof body.email === 'string' ? body.email : undefined,
       phoneNumber: typeof body.phoneNumber === 'string' ? body.phoneNumber : undefined,
+      pushToken: typeof body.pushToken === 'string' ? body.pushToken : undefined,
       emailEnabled: body.emailEnabled !== false,
       smsEnabled: body.smsEnabled === true,
+      pushEnabled: body.pushEnabled === true,
       notifyOnPending: body.notifyOnPending !== false,
       notifyOnCompleted: body.notifyOnCompleted !== false,
       notifyOnFailed: body.notifyOnFailed !== false,
+      channelRouting:
+        body.channelRouting && typeof body.channelRouting === 'object'
+          ? (body.channelRouting as Record<string, string[]>)
+          : undefined,
+      locale: typeof body.locale === 'string' ? body.locale : undefined,
     });
 
     return NextResponse.json({ data: preferences }, { status: 200 });
