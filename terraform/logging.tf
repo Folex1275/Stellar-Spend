@@ -162,6 +162,28 @@ resource "aws_cloudwatch_query_definition" "payout_failures" {
   QUERY
 }
 
+resource "aws_cloudwatch_query_definition" "high_latency" {
+  name = "${local.name_prefix}/high-latency-requests"
+  log_group_names = [aws_cloudwatch_log_group.app.name]
+
+  query_string = <<-QUERY
+    fields @timestamp, method, path, status, durationMs, requestId
+    | filter event = "http.request" and durationMs > 3000
+    | stats avg(durationMs) as avgMs, max(durationMs) as maxMs, count() as requests by path
+    | sort avgMs desc
+  QUERY
+}
+
+# Subscription filter from errors log group → Firehose for archival
+resource "aws_cloudwatch_log_subscription_filter" "errors_to_firehose" {
+  name            = "${local.name_prefix}-errors-to-firehose"
+  log_group_name  = aws_cloudwatch_log_group.app_errors.name
+  filter_pattern  = ""
+  destination_arn = aws_kinesis_firehose_delivery_stream.logs.arn
+  role_arn        = aws_iam_role.cwl_firehose.arn
+  distribution    = "ByLogStreamName"
+}
+
 # ── S3 bucket for log archival ────────────────────────────────────────────────
 
 resource "aws_s3_bucket" "logs" {

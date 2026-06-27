@@ -344,3 +344,23 @@ jobs:
 
       - name: Deploy to production
         run: echo "Deploying ${{ github.ref_name }} to production"
+
+  helm-lint:
+    name: Helm Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Lint chart (default values)
+        run: helm lint helm/stellar-spend
+
+      - name: Lint chart (staging values)
+        run: helm lint helm/stellar-spend -f helm/stellar-spend/values-staging.yaml
+
+      - name: Lint chart (production values)
+        run: helm lint helm/stellar-spend -f helm/stellar-spend/values-production.yaml
