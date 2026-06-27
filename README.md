@@ -18,6 +18,7 @@
 - [Setup Guide](#setup-guide)
 - [Environment Variables](#environment-variables)
 - [API Reference](#api-reference)
+- [Architecture Decision Records](#architecture-decision-records)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [Contact](#contact)
@@ -312,6 +313,26 @@ Content-Type: application/json
   "destinationToken": { "symbol": "USDC", "decimals": 6, "chain": "BASE" }
 }
 ```
+
+---
+
+## Architecture Decision Records
+
+Key architectural decisions are documented as ADRs in [`docs/adr/`](./docs/adr/).
+
+| ADR | Title | Date | Status |
+|-----|-------|------|--------|
+| [ADR-001](./docs/adr/ADR-001-localstorage-transaction-history.md) | localStorage for Transaction History | 2025-01-01 | Accepted |
+| [ADR-002](./docs/adr/ADR-002-allbridge-sdk-dynamic-import.md) | Allbridge SDK Dynamic Import | 2025-01-01 | Accepted |
+| [ADR-003](./docs/adr/ADR-003-adapter-pattern-external-services.md) | Adapter Pattern for External Services | 2025-01-01 | Accepted |
+| [ADR-004](./docs/adr/ADR-004-api-versioning-strategy.md) | API Versioning Strategy | 2025-01-01 | Accepted |
+| [ADR-005](./docs/adr/ADR-005-environment-variable-validation.md) | Environment Variable Validation | 2025-01-01 | Accepted |
+| [ADR-006](./docs/adr/ADR-006-idempotency-implementation.md) | Idempotency Implementation | 2025-01-01 | Accepted |
+| [ADR-007](./docs/adr/ADR-007-onramp-architecture.md) | On-Ramp Architecture — Provider Registry | 2026-06-27 | Accepted |
+| [ADR-008](./docs/adr/ADR-008-soroban-escrow-trust-model.md) | Soroban Escrow Trust Model | 2026-06-27 | Accepted |
+| [ADR-009](./docs/adr/ADR-009-provider-abstraction-routing.md) | Provider Abstraction and Routing | 2026-06-27 | Accepted |
+| [ADR-010](./docs/adr/ADR-010-realtime-transport-sse-vs-websocket.md) | Real-Time Transport — SSE vs WebSocket | 2026-06-27 | Accepted |
+| [ADR-011](./docs/adr/ADR-011-feature-flag-approach.md) | Feature Flag Approach | 2026-06-27 | Accepted |
 
 ---
 
