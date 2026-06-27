@@ -1,8 +1,10 @@
 # Stellar-Spend User Guide
 
-Convert your Stellar stablecoins (USDC) to fiat currency and receive funds directly in your bank account.
+Convert your Stellar stablecoins (USDC / USDT) to fiat currency and receive funds directly in your bank account — non-custodial, real-time, global.
 
-> **Note for maintainers:** Sections marked `[SCREENSHOT]` are placeholders. Replace them with actual screenshots once the UI is stable.
+> **In-app help:** Click the **?** icon anywhere in the app to open the interactive Help Center, which covers all topics in this guide with search and category filters.
+
+> **Note for maintainers:** Sections marked `[SCREENSHOT]` are placeholders. Replace them with actual screenshots or GIFs once the UI is stable.
 
 ---
 
@@ -11,10 +13,14 @@ Convert your Stellar stablecoins (USDC) to fiat currency and receive funds direc
 1. [What You Need](#what-you-need)
 2. [Connecting Your Wallet](#connecting-your-wallet)
 3. [Making a Conversion](#making-a-conversion)
-4. [Transaction Status Tracking](#transaction-status-tracking)
-5. [Transaction History](#transaction-history)
-6. [FAQ](#faq)
-7. [Troubleshooting](#troubleshooting)
+4. [Fees Explained](#fees-explained)
+5. [Supported Currencies & Banks](#supported-currencies--banks)
+6. [Transaction Status Tracking](#transaction-status-tracking)
+7. [Transaction History](#transaction-history)
+8. [Refunds & Failed Transactions](#refunds--failed-transactions)
+9. [Security](#security)
+10. [FAQ](#faq)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -22,9 +28,9 @@ Convert your Stellar stablecoins (USDC) to fiat currency and receive funds direc
 
 Before you start:
 
-- A **Freighter** or **Lobstr** Stellar wallet browser extension, installed and set up
-- **USDC on Stellar** (the token you'll be converting)
-- A small amount of **XLM** in your wallet (required for Stellar network fees — minimum ~3 XLM reserve + ~2.5 XLM for gas, unless you pay fees in USDC)
+- A **Freighter** or **Lobstr** Stellar wallet browser extension, installed and set to **Mainnet**
+- **USDC on Stellar** (the token you'll be converting) — minimum 0.70 USDC
+- A small amount of **XLM** for Stellar network fees (unless you pay fees in USDC)
 - Your **bank account details**: account number and the name of your bank
 
 ---
@@ -33,223 +39,287 @@ Before you start:
 
 ### Step 1 — Open the app
 
-Navigate to the app URL. You'll see the Offramp Dashboard with three progress steps at the bottom. Step **01 — CONNECT WALLET** will be highlighted.
+Navigate to the app URL. Click **CONNECT WALLET** in the top-right header.
 
-`[SCREENSHOT: Dashboard on first load, step 01 highlighted, Connect Wallet button visible in the header]`
+`[SCREENSHOT: Dashboard on first load with Connect Wallet button highlighted]`
 
-### Step 2 — Click "Connect Wallet"
+### Step 2 — Choose your wallet
 
-Click the **Connect Wallet** button in the top-right header.
+The app auto-detects installed wallets:
+- **Freighter** takes priority if both are installed
+- **Lobstr** is available as an alternative
 
-The app auto-detects your installed wallet:
-- If **Freighter** is installed, it connects automatically.
-- If only **Lobstr** is installed, it connects to Lobstr.
-- If both are installed, Freighter takes priority.
+Your wallet extension opens and asks you to approve the connection.
 
-Your wallet extension will open and ask you to approve the connection.
-
-`[SCREENSHOT: Freighter extension popup requesting connection approval]`
+`[SCREENSHOT: Wallet selection modal]`
 
 ### Step 3 — Approve the connection
 
-Click **Connect** (or **Approve**) in your wallet extension.
+Click **Connect** (or **Approve**) in your wallet extension. Once connected, the header shows:
+- Your wallet address (truncated, e.g. `GABC…XYZ`)
+- Your USDC and XLM balances
+- Which wallet is connected
 
-Once connected, the header updates to show:
-- Your wallet address (truncated, e.g. `GABC...XYZ`)
-- Your **USDC** balance
-- Your **XLM** balance
-- Which wallet is connected (Freighter or Lobstr)
+`[SCREENSHOT: Header showing connected wallet address and balances]`
 
-`[SCREENSHOT: Header showing connected wallet address, USDC and XLM balances]`
+### Switching wallets
 
-### Disconnecting
+To switch, click your address in the header → **Disconnect**, then reconnect with the other wallet.
 
-Click your wallet address in the header, then click **Disconnect**. This clears your session and local transaction history from the browser.
+### Troubleshooting wallet connection
+
+| Symptom | Fix |
+|---------|-----|
+| Button does nothing | Install the extension and refresh the page |
+| "Wrong network" | Switch to Mainnet in wallet settings |
+| Connection lost | Click your address → Reconnect |
 
 ---
 
 ## Making a Conversion
 
+`[GIF: Full offramp flow from amount entry to completion confirmation]`
+
 ### Step 1 — Enter the amount
 
-In the form on the left, enter the amount of **USDC** you want to convert.
+Type the USDC amount you want to convert **or** switch to fiat-amount mode (click the toggle icon) to enter the target fiat amount instead.
 
-As you type, the app fetches a live quote and shows the estimated fiat amount you'll receive in the right panel.
+The right panel shows a live quote including:
+- Exchange rate (USDC → fiat)
+- Fee breakdown
+- Estimated fiat payout
+- Estimated completion time (5–15 min)
 
-`[SCREENSHOT: Form with amount entered, right panel showing estimated payout amount and exchange rate]`
+`[SCREENSHOT: Form with amount entered showing live quote in right panel]`
 
-> The quote is valid for **5 minutes**. If it expires before you submit, the form will prompt you to refresh it.
+> Quotes are valid for **5 minutes** and refresh automatically.
 
-### Step 2 — Select your currency and bank
+### Step 2 — Select currency and bank
 
-1. Choose your **fiat currency** from the dropdown (e.g. NGN, KES).
-2. Select your **bank** from the list that appears.
-3. Enter your **account number**.
-4. Click **Verify Account** — the app will look up and display your account name for confirmation.
+1. Choose your fiat currency (NGN, KES, GHS, ZAR, …)
+2. Select your bank from the list
+3. Enter the beneficiary account number
+4. The app verifies the account and displays the account holder's name
 
-`[SCREENSHOT: Form with currency selected, bank selected, account number entered, verified account name shown]`
+`[SCREENSHOT: Form showing verified account name after entering account number]`
 
-### Step 3 — Choose your fee payment method
+> Always confirm the displayed name matches your intended recipient before proceeding.
 
-Select how you want to pay the Allbridge bridge fee:
+### Step 3 — Choose the gas fee method
 
-| Option | What it means |
-|---|---|
-| **USDC** (recommended) | Fee is deducted from your USDC amount. No extra XLM needed beyond the minimum reserve. |
-| **XLM** | Fee is paid in XLM. Requires at least ~5.5 XLM in your wallet (3 XLM reserve + ~2.5 XLM gas). |
+| Option | Description |
+|--------|-------------|
+| **USDC** (recommended) | Bridge fee deducted from your USDC. No extra XLM beyond the minimum reserve. |
+| **XLM** | Fee paid in XLM. Requires ~3 XLM reserve + ~2.5 XLM for gas. |
 
-`[SCREENSHOT: Fee method toggle showing USDC and XLM options]`
+`[SCREENSHOT: Fee method toggle]`
 
 ### Step 4 — Review and confirm
 
-Check the right panel summary:
-- Amount you're sending (USDC)
-- Exchange rate
-- Estimated fiat amount you'll receive
-- Estimated completion time
+The right panel summarises:
+- Amount sent (USDC)
+- Bridge fee + platform fee + network fee
+- Final fiat payout amount
+- Estimated time
 
-When everything looks correct, click **Send**.
+Click **Send** when ready.
 
-`[SCREENSHOT: Right panel showing full quote summary before submission]`
+`[SCREENSHOT: Right panel with full quote summary]`
 
-### Step 5 — Sign the transaction
+### Step 5 — Sign in your wallet
 
-A progress modal appears. The app builds the bridge transaction and your wallet extension opens asking you to **sign** it.
+A progress modal appears. The app builds the Soroban transaction and your wallet extension asks you to sign it.
 
-`[SCREENSHOT: Progress modal at "Awaiting Wallet Signature" step, wallet extension open in background]`
+`[SCREENSHOT: Progress modal at "Awaiting Wallet Signature" step]`
 
-Review the transaction details in your wallet and click **Sign** (or **Approve**).
-
-> **Important:** Never sign a transaction you didn't initiate. The app will only ask you to sign once per conversion.
+Click **Sign** in your wallet. Do not close the browser while the transaction is processing.
 
 ### Step 6 — Wait for completion
 
-After signing, the modal tracks progress through these steps automatically:
+| Stage | Description | Typical Duration |
+|-------|-------------|-----------------|
+| Submitting | Signed transaction sent to Stellar | < 30 seconds |
+| Processing On-Chain | Allbridge bridges USDC to Base | 1–5 minutes |
+| Settling Fiat Payout | Paycrest initiates bank transfer | 1–10 minutes |
+| Complete ✓ | Funds credited to bank account | — |
 
-| Step | What's happening |
-|---|---|
-| Submitting to Network | Your signed transaction is sent to the Stellar network |
-| Processing On-Chain | Allbridge picks up the transfer and moves USDC to Base |
-| Settling Fiat Payout | Paycrest processes the bank transfer |
-| Transaction Complete ✓ | Funds are on their way to your bank account |
+`[SCREENSHOT: Progress modal showing Transaction Complete success state]`
 
-`[SCREENSHOT: Progress modal showing "Processing On-Chain" step with completed steps above it]`
+---
 
-`[SCREENSHOT: Progress modal showing "Transaction Complete" success state with green checkmark]`
+## Fees Explained
 
-The full process typically takes **5–15 minutes** depending on network conditions.
+All fees are displayed before you confirm. There are no hidden charges.
 
-Click **Dismiss** when done. The form resets and your balances refresh automatically.
+| Fee | Amount | Description |
+|-----|--------|-------------|
+| Bridge fee | ~0.3–0.5% | Allbridge cross-chain conversion (Stellar → Base) |
+| Platform fee | 0.35% | Operational costs and compliance |
+| Network fee | ~2.50 USDC | Stellar + Base gas (paid in XLM or USDC) |
+| Payout fee | 0% | Paycrest bank settlement — no additional charge |
+
+**Example** — 100 USDC to NGN:
+- Bridge fee: ~0.40 USDC
+- Platform fee: 0.35 USDC
+- Network fee: ~2.50 USDC
+- Net USDC to Paycrest: ~96.75 USDC → converted at live rate
+
+---
+
+## Supported Currencies & Banks
+
+Current fiat corridors:
+
+| Currency | Country |
+|----------|---------|
+| NGN | Nigeria |
+| KES | Kenya |
+| GHS | Ghana |
+| ZAR | South Africa |
+
+Additional corridors are added regularly. The currency list in the app is fetched live and always up to date.
+
+To request a new corridor, open an issue on the repository.
 
 ---
 
 ## Transaction Status Tracking
 
-### Progress Modal
+After confirming, track your transaction:
 
-While a conversion is in progress, the modal stays open and updates in real time. You can see exactly which step is active and which are complete.
+- **Live progress modal** — shown on the main page during active transactions
+- **/history page** — full history with searchable, filterable status badges
+- **Notifications** — push or email alerts (configure in Settings → Notifications)
 
-If something goes wrong, the modal switches to an **error state** showing a red icon and a description of what failed.
+Status stages:
 
-`[SCREENSHOT: Progress modal in error state with red X icon and error message]`
+```
+Pending → Bridging → Settling → Processing → Complete
+```
 
-Click **Dismiss** to close the error modal. Your transaction is saved in history with a `failed` status.
-
-### Stellar Explorer
-
-On a successful transaction, the modal shows a link to view your transaction on [Stellar Expert](https://stellar.expert/explorer/public). Click **View transaction on Stellar Explorer →** to see the on-chain details.
-
-`[SCREENSHOT: Success modal with transaction hash and Stellar Explorer link]`
+If the status is stuck for more than 30 minutes, see [Troubleshooting](#troubleshooting) or contact support.
 
 ---
 
 ## Transaction History
 
-The **Recent Offramps** table below the form shows your last conversions for the connected wallet.
+Visit **/history** for your full transaction record.
 
-`[SCREENSHOT: Recent Offramps table showing a few completed and pending transactions]`
+`[SCREENSHOT: /history page showing filtered transaction list]`
 
-Each row shows:
-- Date and time
-- Amount sent (USDC)
-- Currency received
-- Status: `pending`, `completed`, or `failed`
+Features:
+- Filter by date, currency, status, amount
+- Export to CSV, PDF, or JSON
+- View itemised receipts with exchange rate
+- Copy transaction hashes for on-chain verification
+- File disputes for problematic transactions
 
-History is stored locally in your browser. It is scoped to your wallet address and holds up to 50 records. Disconnecting your wallet clears the history from the current session (the data remains in `localStorage` and reloads when you reconnect).
+Transaction data is stored in your browser's `localStorage` and optionally synced to the server (Settings → Sync Account).
 
-To view full history, click **View All** (or navigate to `/history`).
+---
+
+## Refunds & Failed Transactions
+
+### Bridge fails (before Base confirmation)
+Your Stellar USDC is automatically refunded within 30 minutes.
+
+### Payout fails (after bridge)
+Base USDC is returned to the refund address. Contact support with the transaction hash.
+
+### Manual refund request
+1. Go to /history
+2. Click the transaction
+3. Click **Request Refund** (visible within 24 hours of initiation)
+4. Submit the reason
+
+---
+
+## Security
+
+Stellar-Spend is **non-custodial**:
+
+- Your private key never leaves your wallet extension
+- All transactions are signed locally
+- The server never holds your funds
+- HTTPS-only communication
+- HMAC-verified webhooks
+
+**We will never ask for your seed phrase or private key.**
+
+For more details, see [docs/security-best-practices.md](./security-best-practices.md).
 
 ---
 
 ## FAQ
 
 **Which wallets are supported?**
-Freighter and Lobstr. Freighter is auto-detected first. If you have both installed, Freighter is used.
+Freighter and Lobstr. Freighter is used if both are installed.
 
 **Which tokens can I convert?**
-Currently USDC on Stellar. The bridge routes USDC from Stellar → Base before the fiat payout.
+USDC and USDT (Stellar-issued). The app bridges to Base USDC before the fiat payout.
 
-**Which fiat currencies are supported?**
-The currency list is fetched live from Paycrest. Available currencies depend on your region. Select your currency in the form to see what's available.
+**What is the minimum transfer amount?**
+0.70 USDC. We recommend at least $10 USDC for meaningful payouts after fees.
 
 **How long does a conversion take?**
-Typically 5–15 minutes. The Allbridge bridge step (Stellar → Base) usually takes 3–10 minutes. The Paycrest bank transfer follows immediately after.
+5–15 minutes under normal conditions. Weekend bank transfers may take until the next business day.
+
+**Do I need KYC?**
+Transfers up to $150 USDC require no KYC. Tier 1 KYC allows up to $500; Tier 2 removes limits. Configure in Settings → KYC & Limits.
 
 **What are the fees?**
-- **Bridge fee**: paid in USDC or XLM (your choice). The exact amount is shown in the fee selector before you confirm.
-- **Payout fee**: included in the exchange rate shown in the quote. There are no hidden fees.
+Bridge ~0.4%, platform 0.35%, network ~2.50 USDC fixed. All shown before confirmation.
 
-**Is there a minimum or maximum amount?**
-Minimums and maximums are enforced by Allbridge and Paycrest. If your amount is outside the accepted range, you'll see an error when the quote is fetched.
-
-**What happens if the transaction fails mid-way?**
-- If the Stellar transaction fails before submission: your wallet is not debited.
-- If the bridge fails after submission: Allbridge will return funds to your Stellar address (this can take up to 24 hours).
-- If the Paycrest payout fails: the order status will show `refunded` or `expired` and funds are returned via the configured return address.
+**What if the transaction fails mid-way?**
+- Before Stellar submission: wallet is not debited.
+- Bridge failure: Allbridge refunds to your Stellar address (up to 24 hours).
+- Payout failure: Paycrest refunds via the return address. Contact support with your order ID.
 
 **Is my private key ever sent to the server?**
-No. Your private key never leaves your wallet extension. The app only asks your wallet to sign a transaction — the signing happens locally in the extension.
+No. The extension signs locally; only the signed XDR is sent to the server.
 
 **Why does the app need my account name?**
-Paycrest requires a verified account name to process the bank transfer. The app looks it up automatically when you enter your account number — you don't need to type it manually.
+Paycrest requires a verified name to process the bank transfer. The app looks it up automatically.
 
 ---
 
 ## Troubleshooting
 
 ### "Connect Wallet" button does nothing
+Install [Freighter](https://www.freighter.app/) or [Lobstr](https://lobstr.co/), refresh, and try again.
 
-Your wallet extension is not installed or not detected. Install [Freighter](https://www.freighter.app/) or [Lobstr](https://lobstr.co/), refresh the page, and try again.
+### "Freighter is set to Testnet"
+Open Freighter → Settings → Network → select **Mainnet (Public)**.
 
 ### "Insufficient USDC balance"
-
-Your wallet has less USDC than the amount you entered. Check your balance in the header and enter a lower amount.
+Your USDC balance is less than the entered amount. Reduce the amount or top up.
 
 ### "Insufficient XLM for gas"
+Switch the fee method to **USDC**, or add more XLM to your wallet.
 
-You selected XLM as the fee method but don't have enough XLM. You need at least ~5.5 XLM (3 XLM minimum reserve + ~2.5 XLM for gas). Either:
-- Add more XLM to your wallet, or
-- Switch the fee method to **USDC**
+### "Bridge quote unavailable" (502)
+Allbridge is temporarily unreachable. Retry in 30 seconds or check [allbridge.io](https://allbridge.io).
 
-### "Bridge quote unavailable" or "FX rate unavailable"
+### "FX rate unavailable" (502)
+Paycrest rate API is down. Retry shortly.
 
-The Allbridge or Paycrest service is temporarily unreachable. Wait a minute and try refreshing the quote. If the issue persists, check the [Allbridge status page](https://allbridge.io) or [Paycrest status](https://paycrest.io).
+### "Simulation failed: resulting balance not within allowed range"
+USDC balance is too low to cover the transfer + fees. Reduce the amount.
 
-### Transaction stuck on "Processing On-Chain"
+### Transaction stuck on "Processing On-Chain" > 15 minutes
+1. Copy your Stellar transaction hash from history.
+2. Check [Allbridge Explorer](https://core.allbridge.io/explorer).
+3. If marked failed, Allbridge will auto-refund to your Stellar address.
 
-The Allbridge bridge can take up to 10 minutes under normal conditions. If it has been more than 20 minutes:
-1. Copy your Stellar transaction hash from the success/history screen.
-2. Check the transfer status at [Allbridge Explorer](https://core.allbridge.io/explorer).
-3. If the bridge shows the transfer as failed, Allbridge will automatically refund your Stellar address.
+### Transaction stuck on "Settling Fiat Payout" > 30 minutes
+Bank processing can be delayed. Contact Paycrest support with your order ID from /history.
 
-### Transaction stuck on "Settling Fiat Payout"
+### Transaction history is empty after reconnecting
+History is in `localStorage`. It is browser- and device-specific. Enable account sync in Settings to persist across devices.
 
-Bank transfers can occasionally take longer due to processing windows. If the status has not changed after 30 minutes, contact Paycrest support with your order ID (visible in transaction history).
+### "Bundle size CI failure"
+Run `npm run build:analyze` to find large chunks. Use dynamic imports for non-critical code.
 
-### The page shows an error on load
+---
 
-The app validates its configuration at startup. If you see a startup error, the deployment is misconfigured — contact the platform operator. This is not something you can fix as a user.
-
-### My transaction history is empty after reconnecting
-
-Transaction history is stored in your browser's `localStorage`. If you cleared your browser data or are using a different browser/device, the history will not be available. The funds are not affected — only the local display record is missing.
+*For further help, contact: support@stellar-spend.io or open an issue on the repository.*

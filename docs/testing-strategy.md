@@ -7,15 +7,19 @@ This document describes the full testing approach for Stellar-Spend — tooling,
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Unit Testing with Vitest](#unit-testing-with-vitest)
-3. [Integration Testing](#integration-testing)
-4. [E2E Testing with Playwright](#e2e-testing-with-playwright)
-5. [Mutation Testing](#mutation-testing)
-6. [Accessibility Testing](#accessibility-testing)
-7. [Chaos Engineering Tests](#chaos-engineering-tests)
-8. [Test Coverage Requirements](#test-coverage-requirements)
-9. [Mocking External Services](#mocking-external-services)
-10. [CI/CD Testing Pipeline](#cicd-testing-pipeline)
+2. [Test Pyramid](#test-pyramid)
+3. [Unit Testing with Vitest](#unit-testing-with-vitest)
+4. [Integration Testing](#integration-testing)
+5. [E2E Testing with Playwright](#e2e-testing-with-playwright)
+6. [Contract Testing (Soroban)](#contract-testing-soroban)
+7. [Mutation Testing](#mutation-testing)
+8. [Accessibility Testing](#accessibility-testing)
+9. [Chaos Engineering Tests](#chaos-engineering-tests)
+10. [Test Coverage Requirements](#test-coverage-requirements)
+11. [Fixtures & Mock Conventions](#fixtures--mock-conventions)
+12. [Mocking External Services](#mocking-external-services)
+13. [How to Write a Good Test](#how-to-write-a-good-test)
+14. [CI/CD Testing Pipeline](#cicd-testing-pipeline)
 
 ---
 
@@ -39,6 +43,39 @@ npm test               # Unit + integration (single run)
 npm run test:watch     # Watch mode for development
 npm run test:e2e       # Playwright E2E suite
 ```
+
+---
+
+## Test Pyramid
+
+```
+              /‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾\
+             /  E2E (Playwright)           \
+            /  ~20 flows · slowest          \
+           /‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾\
+          /  Integration (Vitest)            \
+         /  Route handlers + real services    \
+        /  ~80 tests · medium speed           \
+       /‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾\
+      /  Unit (Vitest + RTL)                   \
+     /  Functions, components, hooks            \
+    /  ~400+ tests · fastest                    \
+   /‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾\
+  /  Contract (cargo test)                        \
+ /  Soroban smart contracts (on-chain logic)       \
+/‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾\
+```
+
+| Layer | Location | Tool | When to write |
+|-------|----------|------|---------------|
+| Unit | `src/lib/**/*.test.ts`, `src/test/*.test.tsx` | Vitest + React Testing Library | Any new function, hook, or component |
+| Integration | `src/test/integration/` | Vitest | Any new or changed API route handler |
+| E2E | `e2e/` | Playwright | Critical user journeys (connect → send → complete) |
+| Contract | `contracts/*/tests/` | `cargo test` | Any Soroban contract logic change |
+| Mutation | `vitest.mutation.config.ts` | Vitest coverage | Periodic quality audits; run before releases |
+| Chaos | `src/test/chaos-engineering.test.ts` | Vitest | Resilience scenarios for external service failures |
+
+**Rule of thumb:** prefer more unit tests and fewer E2E tests. If something can be tested at the unit level, do not rely solely on E2E coverage for it.
 
 ---
 
@@ -279,6 +316,78 @@ test('home page has no critical accessibility violations', async ({ page }) => {
 
 ---
 
+## Contract Testing (Soroban)
+
+Soroban smart contracts are written in Rust and live in `contracts/`. Each contract has a `tests/` directory using the standard `cargo test` harness with `soroban-sdk`'s test utilities.
+
+### Running contract tests
+
+```bash
+# Run all contract tests
+cd contracts/escrow && cargo test
+cd contracts/fee-manager && cargo test
+cd contracts/treasury && cargo test
+
+# Run a specific test
+cargo test test_release_flow -- --nocapture
+```
+
+### Contract test structure
+
+Each contract test file (`contracts/*/tests/integration.rs`) follows this pattern:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use soroban_sdk::{Env, Address, testutils::Address as _};
+    use crate::EscrowContract;
+
+    fn setup() -> (Env, Address, Address) {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, EscrowContract);
+        let depositor = Address::generate(&env);
+        (env, contract_id, depositor)
+    }
+
+    #[test]
+    fn test_release_flow() {
+        let (env, contract_id, depositor) = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+        // ... test release happy path
+    }
+
+    #[test]
+    fn test_refund_after_timeout() {
+        // ...
+    }
+}
+```
+
+### What to test in contracts
+
+| Scenario | Why |
+|----------|-----|
+| Happy path for each public function | Verify intended behavior |
+| State machine transitions | Ensure only valid state changes are accepted |
+| Authorization checks | Confirm unauthorized callers are rejected |
+| Timeout boundary conditions | Verify timeout math at `timeout_ledger - 1`, `timeout_ledger`, `timeout_ledger + 1` |
+| Double-release / double-refund | Confirm mutual exclusion is enforced |
+| Deposit ID uniqueness | Confirm duplicate IDs are rejected |
+| Fee calculation tiers | Verify fee schedules at tier boundaries |
+
+### CI integration
+
+Contract tests run via `.github/workflows/contract.yml` on every push to branches touching `contracts/`. The workflow:
+
+```yaml
+- name: Run contract tests
+  run: cargo test --manifest-path contracts/escrow/Cargo.toml
+```
+
+Contract tests do **not** require a live Stellar network — `Env::default()` provides a fully mocked Soroban environment.
+
+---
+
 ## Mutation Testing
 
 Mutation testing verifies the quality of your test suite by introducing deliberate bugs (mutations) into source code and checking that tests catch them.
@@ -438,6 +547,102 @@ Coverage output is written to `./coverage/` (git-ignored). Hard thresholds are n
 
 ---
 
+## Fixtures & Mock Conventions
+
+All shared test helpers, factories, and fixtures live in `src/test/`:
+
+```
+src/test/
+├── setup.ts               — Vitest setup file (loads @testing-library/jest-dom)
+├── test-helpers.ts        — Factory functions for test data
+├── mocks/
+│   ├── handlers.ts        — MSW request handlers for API mocking
+│   └── server.ts          — MSW server setup (start/stop/reset)
+└── *.test.ts / *.test.tsx — Unit and component tests
+```
+
+### Factory functions (`src/test/test-helpers.ts`)
+
+Use factory functions instead of copy-pasting object literals. Factories produce valid objects with sensible defaults and accept partial overrides:
+
+```ts
+import { createTestTransaction, createQuoteFactory } from '@/test/test-helpers';
+
+// Default transaction
+const tx = createTestTransaction();
+
+// Override specific fields
+const failedTx = createTestTransaction({ status: 'failed', amount: '50' });
+
+// Quote factory
+const quote = createQuoteFactory.withAmount('100').withCurrency('NGN').create();
+```
+
+Available factories:
+- `createTestTransaction(overrides?)` — `Transaction` with status, amount, currency
+- `createValidStellarAddress()` — valid `G…` address string
+- `createValidBaseAddress()` — valid `0x…` EVM address string
+- `createQuoteFactory` — fluent builder for `QuoteResponse`
+- `createBeneficiaryFactory` — fluent builder for `Beneficiary`
+- `createApiResponseFactory` — success / error / notFound / unauthorized helpers
+- `createUserDataFactory` — wallet address + mock user data
+- `createLocalStorageMock()` — localStorage stub for environments without jsdom
+
+### MSW handlers (`src/test/mocks/`)
+
+Use [MSW (Mock Service Worker)](https://mswjs.io/) to intercept real HTTP requests in integration tests. Handlers are defined in `src/test/mocks/handlers.ts`:
+
+```ts
+import { http, HttpResponse } from 'msw';
+
+export const handlers = [
+  http.post('https://api.paycrest.io/v1/orders', () =>
+    HttpResponse.json({ id: 'mock-order-id', status: 'pending' })
+  ),
+];
+```
+
+Start/reset/stop the MSW server in test lifecycle hooks:
+
+```ts
+import { server } from '@/test/mocks/server';
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+```
+
+Override a handler for a single test:
+
+```ts
+server.use(
+  http.post('https://api.paycrest.io/v1/orders', () =>
+    HttpResponse.json({ error: 'Insufficient liquidity' }, { status: 422 })
+  )
+);
+```
+
+### When to use `vi.mock` vs MSW
+
+| Scenario | Use |
+|----------|-----|
+| Mocking a TypeScript module (SDK, adapter class) | `vi.mock('@/lib/clients/paycrest')` |
+| Mocking an external HTTP endpoint | MSW handler |
+| Mocking `localStorage` or browser APIs | `createLocalStorageMock()` or `vi.stubGlobal` |
+| Mocking environment variables | `vi.mock('@/lib/env', ...)` |
+
+### Shared fixtures for localStorage
+
+Tests that use `localStorage` must clear it in `beforeEach` to prevent cross-test pollution:
+
+```ts
+beforeEach(() => localStorage.clear());
+```
+
+Do not rely on `localStorage` state left by a previous test.
+
+---
+
 ## Mocking External Services
 
 ### Environment variables
@@ -530,6 +735,142 @@ expect(onSubmit).toHaveBeenCalledOnce();
 ```ts
 beforeEach(() => localStorage.clear());
 ```
+
+---
+
+## How to Write a Good Test
+
+### 1. Name tests as specifications, not implementations
+
+Bad:
+```ts
+it('works', () => { ... });
+it('test validateAmount', () => { ... });
+```
+
+Good:
+```ts
+it('returns false for an amount below the minimum (0.70 USDC)', () => { ... });
+it('returns true for a valid positive decimal amount', () => { ... });
+```
+
+The test name should read as a sentence that explains the expected behavior. A failing test name alone should tell you what broke.
+
+### 2. Arrange → Act → Assert (AAA)
+
+Structure every test in three clear sections:
+
+```ts
+it('deducts the bridge fee from the USDC amount', () => {
+  // Arrange
+  const amount = '100';
+  const bridgeFeeRate = 0.004;
+
+  // Act
+  const result = calculateBridgeFee(amount, bridgeFeeRate);
+
+  // Assert
+  expect(result).toBe('0.40');
+});
+```
+
+### 3. Test one thing per test
+
+Each test should have one reason to fail. If a test asserts three unrelated behaviors, split it into three tests. Multiple `expect` calls on the same unit are fine; testing multiple independent concerns in one test is not.
+
+### 4. Cover the important cases
+
+Every non-trivial function needs at minimum:
+- **Happy path**: valid inputs produce the expected output
+- **Boundary values**: minimum, maximum, zero, empty
+- **Error paths**: invalid inputs throw or return the correct error
+- **Edge cases**: nullish values, empty arrays, maximum length strings
+
+```ts
+describe('validateAmount', () => {
+  it('accepts the minimum valid amount (0.70)', () => { ... });
+  it('accepts a large valid amount', () => { ... });
+  it('rejects an empty string', () => { ... });
+  it('rejects a negative number', () => { ... });
+  it('rejects a non-numeric string', () => { ... });
+  it('rejects zero', () => { ... });
+});
+```
+
+### 5. Assert specific values, not just truthiness
+
+Bad:
+```ts
+expect(result).toBeTruthy();
+expect(fees).not.toBeNull();
+```
+
+Good:
+```ts
+expect(result).toBe(true);
+expect(fees.bridgeFee).toBe('0.40');
+```
+
+Specific assertions catch mutations; truthiness assertions do not.
+
+### 6. Do not test implementation details
+
+Tests should verify *what* the code does, not *how* it does it internally. Avoid:
+- Asserting that a private function was called
+- Checking internal state that is not surfaced through the public interface
+- Reaching into component internals instead of querying by accessible role/label
+
+Good component test queries (via React Testing Library):
+```ts
+// ✅ Query by accessible role
+screen.getByRole('button', { name: /send/i })
+
+// ✅ Query by label text
+screen.getByLabelText(/account number/i)
+
+// ✅ Query by visible text
+screen.getByText(/transaction complete/i)
+
+// ❌ Query by CSS class or test-id where ARIA is available
+screen.getByTestId('submit-btn')
+```
+
+### 7. Keep tests fast and isolated
+
+- Unit tests must not make real network requests
+- Always mock `@/lib/env` instead of setting `process.env` directly
+- Clear `localStorage`, mocks, and timers in `beforeEach` / `afterEach`
+- Use `vi.useFakeTimers()` for time-dependent logic
+
+### 8. Test error paths explicitly
+
+```ts
+it('returns 400 when amount is missing from the request body', async () => {
+  const req = new NextRequest('http://localhost/api/offramp/quote', {
+    method: 'POST',
+    body: JSON.stringify({ currency: 'NGN' }), // no amount
+  });
+  const res = await POST(req);
+  expect(res.status).toBe(400);
+  const body = await res.json();
+  expect(body.error.message).toMatch(/amount/i);
+});
+```
+
+Do not assume the happy path is the only path worth testing. Route handlers and service functions have multiple failure modes; each should have a test.
+
+### 9. Avoid snapshot tests for logic
+
+Snapshot tests are appropriate for stable UI output (receipt formatting, static markup). Do not use snapshots to test business logic — they hide regressions behind "update snapshots" prompts.
+
+### 10. Keep test files next to the code they test
+
+| Code location | Test location |
+|---------------|--------------|
+| `src/lib/fee-calculation.ts` | `src/test/fee-calculation.test.ts` |
+| `src/components/Header.tsx` | `src/test/Header.test.tsx` |
+| `src/app/api/offramp/quote/route.ts` | `src/test/integration/api-quote.integration.test.ts` |
+| `contracts/escrow/src/lib.rs` | `contracts/escrow/tests/integration.rs` |
 
 ---
 
