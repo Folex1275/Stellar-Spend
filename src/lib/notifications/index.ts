@@ -1,10 +1,20 @@
-/**
- * Notifications module exports
- */
-
 export * from './types';
-export { NotificationService } from './service';
-export { NotificationTemplates } from './templates';
-export { BrowserNotificationService } from './browser';
-export { NotificationPreferencesStore } from './preferences-store';
-export { NotificationDeliveryStore } from './delivery-store';
+export {
+  notifyTransactionStatusUpdate,
+  getOrCreateNotificationPreferences,
+  getTransactionNotificationDeliveries,
+} from './service';
+export { buildNotificationTemplate, deriveNotificationEvent } from './templates';
+export { getNotificationPreferences, upsertNotificationPreferences } from './preferences-store';
+export {
+  createNotificationDelivery,
+  updateNotificationDelivery,
+  retryNotificationDelivery,
+  getNotificationDeliveriesForTransaction,
+} from './delivery-store';
+export { EmailAdapter, SmsAdapter, PushAdapter, defaultAdapters } from './adapters';
+export {
+  showBrowserNotification,
+  requestNotificationPermission,
+  isNotificationPermissionGranted,
+} from './browser';
