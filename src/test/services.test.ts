@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { QuoteService } from '@/lib/services/quote.service';
 import { BridgeService } from '@/lib/services/bridge.service';
 import { PayoutService } from '@/lib/services/payout.service';
 import { WebhookService } from '@/lib/services/webhook.service';
 import { TransactionService } from '@/lib/services/transaction.service';
-import { ServiceContainer } from '@/lib/services/container';
+import { DIContainer } from '@/lib/di/container';
+import { configureServices, SERVICE_KEYS, overrideService } from '@/lib/di/registry';
 
 describe('QuoteService', () => {
   let service: QuoteService;
@@ -181,40 +182,46 @@ describe('TransactionService', () => {
   });
 });
 
-describe('ServiceContainer', () => {
-  let container: ServiceContainer;
+describe('DIContainer', () => {
+  let container: DIContainer;
 
   beforeEach(() => {
-    container = ServiceContainer.getInstance();
-    container.reset();
+    container = new DIContainer();
+    configureServices(container);
   });
 
-  it('should register and retrieve services', () => {
-    const quoteService = container.getQuoteService();
+  it('should resolve all configured services', async () => {
+    const quoteService = await container.resolve(SERVICE_KEYS.QUOTE_SERVICE);
     expect(quoteService).toBeInstanceOf(QuoteService);
+    const bridgeService = await container.resolve(SERVICE_KEYS.BRIDGE_SERVICE);
+    expect(bridgeService).toBeInstanceOf(BridgeService);
+    const payoutService = await container.resolve(SERVICE_KEYS.PAYOUT_SERVICE);
+    expect(payoutService).toBeInstanceOf(PayoutService);
+    const webhookService = await container.resolve(SERVICE_KEYS.WEBHOOK_SERVICE);
+    expect(webhookService).toBeInstanceOf(WebhookService);
+    const transactionService = await container.resolve(SERVICE_KEYS.TRANSACTION_SERVICE);
+    expect(transactionService).toBeInstanceOf(TransactionService);
   });
 
-  it('should throw error for unregistered service', () => {
-    expect(() => container.get('nonexistent')).toThrow('Service "nonexistent" not found');
+  it('should throw error for unregistered service', async () => {
+    await expect(container.resolve('nonexistent')).rejects.toThrow('Service not registered');
   });
 
-  it('should provide all default services', () => {
-    expect(container.getQuoteService()).toBeInstanceOf(QuoteService);
-    expect(container.getBridgeService()).toBeInstanceOf(BridgeService);
-    expect(container.getPayoutService()).toBeInstanceOf(PayoutService);
-    expect(container.getWebhookService()).toBeInstanceOf(WebhookService);
-    expect(container.getTransactionService()).toBeInstanceOf(TransactionService);
+  it('should return the same singleton instance', async () => {
+    const instance1 = await container.resolve(SERVICE_KEYS.QUOTE_SERVICE);
+    const instance2 = await container.resolve(SERVICE_KEYS.QUOTE_SERVICE);
+    expect(instance1).toBe(instance2);
   });
 
-  it('should allow service replacement', () => {
-    const mockService = { test: 'mock' };
-    container.register('quote', mockService);
-    expect(container.get('quote')).toBe(mockService);
+  it('should support mock overrides', async () => {
+    const mockService = { test: 'mock', getQuote: async () => ({}) };
+    overrideService(container, SERVICE_KEYS.QUOTE_SERVICE, mockService);
+    const resolved = await container.resolve(SERVICE_KEYS.QUOTE_SERVICE);
+    expect(resolved).toBe(mockService);
   });
 
-  it('should reset to default services', () => {
-    container.register('quote', { test: 'mock' });
-    container.reset();
-    expect(container.getQuoteService()).toBeInstanceOf(QuoteService);
+  it('should clear all services', () => {
+    container.clear();
+    expect(container.has(SERVICE_KEYS.QUOTE_SERVICE)).toBe(false);
   });
 });

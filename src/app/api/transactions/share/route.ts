@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sharingService } from '@/lib/services/sharing-service';
+import { globalContainer } from '@/lib/di';
+import { SERVICE_KEYS } from '@/lib/di/registry';
 import { ShareSettings } from '@/types/sharing';
 
 export async function POST(req: NextRequest) {
@@ -16,7 +17,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Transaction ID required' }, { status: 400 });
     }
 
-    const share = await sharingService.createShareLink(transactionId, userAddress, settings);
+    const svc = await globalContainer.resolve(SERVICE_KEYS.SHARING_SERVICE);
+    const share = await svc.createShareLink(transactionId, userAddress, settings);
 
     return NextResponse.json(share, { status: 201 });
   } catch (error) {
@@ -35,7 +37,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'User address required' }, { status: 401 });
     }
 
-    const shares = await sharingService.getUserShareLinks(userAddress);
+    const svc = await globalContainer.resolve(SERVICE_KEYS.SHARING_SERVICE);
+    const shares = await svc.getUserShareLinks(userAddress);
 
     return NextResponse.json(shares);
   } catch (error) {

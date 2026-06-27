@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { onrampService } from '@/lib/services/onramp.service';
+import { globalContainer } from '@/lib/di';
+import { SERVICE_KEYS } from '@/lib/di/registry';
 
 export async function POST(request: Request) {
   try {
@@ -9,9 +10,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'orderId is required' }, { status: 400 });
     }
 
-    await onrampService.reconciliate(orderId);
+    const svc = await globalContainer.resolve(SERVICE_KEYS.ONRAMP_SERVICE);
+    await svc.reconciliate(orderId);
 
-    const status = await onrampService.getOrderStatus(orderId);
+    const status = await svc.getOrderStatus(orderId);
     return NextResponse.json(status);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

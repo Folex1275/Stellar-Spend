@@ -222,4 +222,3 @@ export class OnrampService {
   }
 }
 
-export const onrampService = new OnrampService();

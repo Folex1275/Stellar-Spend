@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { onrampService } from '@/lib/services/onramp.service';
+import { globalContainer } from '@/lib/di';
+import { SERVICE_KEYS } from '@/lib/di/registry';
 import { withIdempotency } from '@/lib/idempotency';
 
 export const maxDuration = 20;
@@ -42,7 +43,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid rate' }, { status: 400 });
       }
 
-      const order = await onrampService.createOrder({
+      const svc = await globalContainer.resolve(SERVICE_KEYS.ONRAMP_SERVICE);
+      const order = await svc.createOrder({
         quoteId,
         fiatAmount,
         fiatCurrency,
