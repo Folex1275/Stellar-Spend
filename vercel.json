@@ -15,5 +15,13 @@
     "api/offramp/status/*": {
       "maxDuration": 30
     }
+  },
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  },
+  "env": {
+    "NEXT_PUBLIC_ENV": "preview"
   }
 }

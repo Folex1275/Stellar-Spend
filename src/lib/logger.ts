@@ -12,6 +12,8 @@
  *   // With request correlation:
  *   const log = logger.withContext({ requestId, userId });
  *   log.info('request.start', { method, path });
+ *
+ * Log schema: docs/logging-schema.md
  */
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -28,13 +30,36 @@ export interface LogEntry {
 
 // ── Redaction ─────────────────────────────────────────────────────────────────
 
+/** Keys whose values are fully redacted (security secrets) */
 const REDACT_KEYS = new Set([
   'privatekey', 'private_key', 'apikey', 'api_key', 'secret',
   'password', 'token', 'authorization', 'x-api-key', 'database_url',
 ]);
 
+/** PII patterns — values matching these regexes are masked */
+const PII_PATTERNS: Array<{ pattern: RegExp; mask: string }> = [
+  // Email addresses
+  { pattern: /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, mask: '[EMAIL]' },
+  // Phone numbers (international and local formats)
+  { pattern: /\+?[\d\s\-().]{7,15}\d/g, mask: '[PHONE]' },
+  // Bank account numbers (8–18 consecutive digits)
+  { pattern: /\b\d{8,18}\b/g, mask: '[ACCOUNT]' },
+];
+
+function maskPii(value: string): string {
+  let out = value;
+  for (const { pattern, mask } of PII_PATTERNS) {
+    out = out.replace(pattern, mask);
+  }
+  return out;
+}
+
 function redact(obj: unknown, depth = 0): unknown {
-  if (depth > 6 || obj === null || typeof obj !== 'object') return obj;
+  if (depth > 6 || obj === null || typeof obj !== 'object') {
+    // Mask PII in string values
+    if (typeof obj === 'string') return maskPii(obj);
+    return obj;
+  }
   if (Array.isArray(obj)) return obj.map((v) => redact(v, depth + 1));
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
@@ -67,6 +92,8 @@ function emit(
     level,
     event,
     timestamp: new Date().toISOString(),
+    service: 'stellar-spend',
+    environment: process.env.NODE_ENV ?? 'development',
     ...context,
     ...redact(fields) as Record<string, unknown>,
   };
