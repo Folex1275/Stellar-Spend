@@ -29,11 +29,23 @@ Access via AWS Console:
 
 ### Budget Alerts
 
-Monthly budget configured with notifications:
+Monthly budgets are configured per environment and per service:
 
-- **80% threshold**: Forecasted alert
-- **100% threshold**: Actual alert
-- **Notification**: Email to cost alert recipient
+**Total monthly budget** (`aws_budgets_budget.monthly`):
+- **80% threshold** (forecasted): warning alert
+- **100% threshold** (actual): breach alert
+- Filtered by `Environment` tag (staging / production budgets are independent)
+
+**Per-service budgets** (`aws_budgets_budget.per_service`):
+| Service | Default Limit |
+|---------|--------------|
+| EC2 Compute | $400/mo |
+| RDS | $300/mo |
+| S3 | $100/mo |
+| Lambda | $50/mo |
+| CloudFront | $100/mo |
+
+Override limits via `monthly_budget_by_service` in your `.tfvars` file.
 
 ### Anomaly Detection
 
@@ -41,7 +53,7 @@ AWS Cost Anomaly Detection monitors for unusual spending patterns:
 
 - **Threshold**: $100 increase
 - **Frequency**: Daily
-- **Notification**: SNS topic
+- **Notification**: SNS topic → email
 
 ## Resource Utilization Monitoring
 
@@ -199,21 +211,26 @@ aws cloudwatch get-dashboard \
 
 ## Cost Optimization Lambda
 
-Automated daily analysis and recommendations:
+Automated daily analysis runs via EventBridge (cron `0 8 * * ? *`). The Lambda uses **real CloudWatch metrics** to identify:
+
+- **EC2 downsizing**: instances with average CPU < 10% over 7 days
+- **EC2 termination**: instances idle (CPU < 2%, minimal NetworkOut) over 7 days
+- **RDS downsizing**: databases with average connections < 5 over 7 days
+- **RDS storage reduction**: databases with > 60% free storage
+- **Cost spikes**: 7-day rolling average > 20% above the prior 23-day baseline
+
+All findings are sent to the cost alerts SNS topic.
 
 ```bash
 # Invoke manually
 aws lambda invoke \
-  --function-name stellar-spend-staging-cost-optimizer \
+  --function-name stellar-spend-${ENVIRONMENT}-cost-optimizer \
   --payload '{}' \
   response.json
+cat response.json
 ```
 
-**Recommendations**:
-- EC2 downsizing
-- RDS downsizing
-- Unused resource cleanup
-- Cost spike alerts
+The Lambda IAM role has `cloudwatch:GetMetricStatistics`, `ce:GetCostAndUsage`, `ec2:DescribeInstances`, `rds:DescribeDBInstances`, and `sns:Publish` permissions.
 
 ## Monthly Cost Review
 
