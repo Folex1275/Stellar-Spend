@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { onrampService } from '@/lib/services/onramp.service';
+import { globalContainer } from '@/lib/di';
+import { SERVICE_KEYS } from '@/lib/di/registry';
 import { onrampProviderRegistry } from '@/lib/onramp/adapters/provider-registry';
 
 export const maxDuration = 15;
@@ -24,7 +25,8 @@ export async function POST(request: Request) {
     }
 
     const payload = JSON.parse(rawBody);
-    await onrampService.handleWebhook(payload);
+    const svc = await globalContainer.resolve(SERVICE_KEYS.ONRAMP_SERVICE);
+    await svc.handleWebhook(payload);
 
     return NextResponse.json({ received: true });
   } catch (error) {

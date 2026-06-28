@@ -85,4 +85,3 @@ export class PayoutService {
   }
 }
 
-export const payoutService = new PayoutService();

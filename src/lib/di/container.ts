@@ -160,6 +160,15 @@ export class DIContainer {
   }
 
   /**
+   * Register or override a singleton service, clearing any cached instance.
+   * Useful for test mocks: container.registerOverride('key', mockObj).
+   */
+  registerOverride<T>(key: string | symbol, instance: T): void {
+    this.instances.delete(key);
+    this.services.set(key, { provider: instance, lifetime: ServiceLifetime.SINGLETON });
+  }
+
+  /**
    * Check if a service is registered
    */
   has(key: string | symbol): boolean {

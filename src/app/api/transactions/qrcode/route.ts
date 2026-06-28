@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { qrCodeService } from '@/lib/services/qrcode-service';
+import { globalContainer } from '@/lib/di';
+import { SERVICE_KEYS } from '@/lib/di/registry';
 import { QRCodeData } from '@/types/qrcode';
 
 export async function POST(req: NextRequest) {
@@ -14,7 +15,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const qrCode = await qrCodeService.createQRCode(transactionId, data);
+    const svc = await globalContainer.resolve(SERVICE_KEYS.QRCODE_SERVICE);
+    const qrCode = await svc.createQRCode(transactionId, data);
 
     return NextResponse.json(qrCode, { status: 201 });
   } catch (error) {
@@ -35,7 +37,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Transaction ID required' }, { status: 400 });
     }
 
-    const qrCode = await qrCodeService.getQRCode(transactionId);
+    const svc = await globalContainer.resolve(SERVICE_KEYS.QRCODE_SERVICE);
+    const qrCode = await svc.getQRCode(transactionId);
 
     if (!qrCode) {
       return NextResponse.json({ error: 'QR code not found' }, { status: 404 });
@@ -43,12 +46,12 @@ export async function GET(req: NextRequest) {
 
     // If requesting SVG format, return as SVG
     if (format === 'svg') {
-      const data = qrCodeService.parseQRData(qrCode.qrData);
+      const data = svc.parseQRData(qrCode.qrData);
       if (!data) {
         return NextResponse.json({ error: 'Invalid QR data' }, { status: 400 });
       }
 
-      const svg = qrCodeService.generateSVGPattern(qrCode.qrData, 200);
+      const svg = svc.generateSVGPattern(qrCode.qrData, 200);
       return new NextResponse(svg, {
         headers: { 'Content-Type': 'image/svg+xml' },
       });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { analyticsService } from '@/lib/services/analytics-service';
+import { globalContainer } from '@/lib/di';
+import { SERVICE_KEYS } from '@/lib/di/registry';
 import { getFunnelCounts } from '@/lib/performance';
 import { buildFunnelData } from '@/lib/funnel';
 import type { FunnelStep } from '@/lib/funnel';
@@ -21,7 +22,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const analytics = await analyticsService.getAnalytics(userAddress, startDate, endDate);
+    const svc = await globalContainer.resolve(SERVICE_KEYS.ANALYTICS_SERVICE);
+    const analytics = await svc.getAnalytics(userAddress, startDate, endDate);
     const funnel = buildFunnelData(getFunnelCounts() as Partial<Record<FunnelStep, number>>);
 
     return NextResponse.json({ ...analytics, funnel });

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { onrampService } from '@/lib/services/onramp.service';
+import { globalContainer } from '@/lib/di';
+import { SERVICE_KEYS } from '@/lib/di/registry';
 
 export async function GET(
   _request: NextRequest,
@@ -7,7 +8,8 @@ export async function GET(
 ) {
   try {
     const { orderId } = await params;
-    const status = await onrampService.getOrderStatus(orderId);
+    const svc = await globalContainer.resolve(SERVICE_KEYS.ONRAMP_SERVICE);
+    const status = await svc.getOrderStatus(orderId);
     return NextResponse.json(status);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
