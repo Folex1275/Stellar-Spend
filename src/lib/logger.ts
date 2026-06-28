@@ -40,6 +40,9 @@ const REDACT_KEYS = new Set([
   'session', 'jwt', 'refresh_token', 'refreshToken', 'access_token', 'accessToken',
   'ssn', 'creditcard', 'credit_card', 'card_number', 'cardnumber',
   'cvv', 'cvv2', 'routing_number', 'routingnumber', 'iban', 'bic', 'swift',
+  // PII — beneficiary fields (#692)
+  'accountidentifier', 'account_identifier', 'beneficiary_account_identifier',
+  'accountname', 'account_name', 'beneficiary_account_name',
 ]);
 
 /** PII patterns — values matching these regexes are masked */
