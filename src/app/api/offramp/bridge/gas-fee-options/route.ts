@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { env } from '@/lib/env';
 import { withAllbridgeTimeout } from '@/lib/offramp/utils/timeout';
@@ -106,7 +107,7 @@ export async function GET(): Promise<NextResponse<GasFeeOptions | { error: strin
       headers: { 'Cache-Control': 'public, max-age=60' },
     });
   } catch (error) {
-    console.error('Error fetching gas fee options:', error);
+    logger.error('Error fetching gas fee options:', {}, error);
     return ErrorHandler.handle(error);
   }
 }

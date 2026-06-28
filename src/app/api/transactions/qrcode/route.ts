@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { globalContainer } from '@/lib/di';
 import { SERVICE_KEYS } from '@/lib/di/registry';
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(qrCode, { status: 201 });
   } catch (error) {
-    console.error('Error creating QR code:', error);
+    logger.error('Error creating QR code:', {}, error);
     return NextResponse.json(
       { error: 'Failed to create QR code' },
       { status: 500 }
@@ -59,7 +60,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(qrCode);
   } catch (error) {
-    console.error('Error fetching QR code:', error);
+    logger.error('Error fetching QR code:', {}, error);
     return NextResponse.json(
       { error: 'Failed to fetch QR code' },
       { status: 500 }

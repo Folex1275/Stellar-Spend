@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { env } from '@/lib/env';
 import { ErrorHandler } from '@/lib/error-handler';
@@ -164,7 +165,7 @@ export async function GET(request: Request) {
       { headers: { 'Cache-Control': 'public, max-age=300' } }
     );
   } catch (error) {
-    console.error('Error fetching currencies:', error);
+    logger.error('Error fetching currencies:', {}, error);
     return ErrorHandler.handle(error);
   }
 }

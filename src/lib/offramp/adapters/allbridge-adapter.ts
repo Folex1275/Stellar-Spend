@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { AllbridgeCoreSdk, nodeRpcUrlsDefault, ChainDetailsMap, TokenWithChainDetails } from '@allbridge/bridge-core-sdk';
 
 // ─── Module-level SDK singleton ───────────────────────────────────────────────
@@ -49,14 +50,14 @@ export function initializeAllbridgeSdk(): AllbridgeCoreSdk {
   const sorobanRpcUrl = process.env.STELLAR_SOROBAN_RPC_URL;
   if (sorobanRpcUrl) {
     rpcUrls.SRB = sorobanRpcUrl;
-    console.log(`[Allbridge SDK] Using Soroban RPC: ${sorobanRpcUrl}`);
+    logger.info(`[Allbridge SDK] Using Soroban RPC: ${sorobanRpcUrl}`);
   }
 
   // Map Horizon URL to STLR (Stellar chain key)
   const horizonUrl = process.env.STELLAR_HORIZON_URL;
   if (horizonUrl) {
     rpcUrls.STLR = horizonUrl;
-    console.log(`[Allbridge SDK] Using Horizon URL: ${horizonUrl}`);
+    logger.info(`[Allbridge SDK] Using Horizon URL: ${horizonUrl}`);
   }
 
   // Legacy fallback for STELLAR_RPC_URL
@@ -64,15 +65,15 @@ export function initializeAllbridgeSdk(): AllbridgeCoreSdk {
   if (legacyRpcUrl && !sorobanRpcUrl && !horizonUrl) {
     if (legacyRpcUrl.includes('horizon')) {
       rpcUrls.STLR = legacyRpcUrl;
-      console.log(`[Allbridge SDK] Using legacy RPC as Horizon: ${legacyRpcUrl}`);
+      logger.info(`[Allbridge SDK] Using legacy RPC as Horizon: ${legacyRpcUrl}`);
     } else {
       rpcUrls.SRB = legacyRpcUrl;
-      console.log(`[Allbridge SDK] Using legacy RPC as Soroban: ${legacyRpcUrl}`);
+      logger.info(`[Allbridge SDK] Using legacy RPC as Soroban: ${legacyRpcUrl}`);
     }
   }
 
   _sdkInstance = new AllbridgeCoreSdk(rpcUrls);
-  console.log('[Allbridge SDK] Initialized new SDK instance');
+  logger.info('[Allbridge SDK] Initialized new SDK instance');
   return _sdkInstance;
 }
 

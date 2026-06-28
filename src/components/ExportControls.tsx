@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 "use client";
 
 import { useState } from "react";
@@ -49,7 +50,7 @@ export default function ExportControls({ transactions, walletAddress }: Props) {
           break;
       }
     } catch (error) {
-      console.error(`Export failed for ${format}:`, error);
+      logger.error(`Export failed for ${format}:`, {}, error);
     } finally {
       setExporting(null);
     }

@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 'use client';
 
 import { useState, useRef } from 'react';
@@ -30,7 +31,7 @@ export function QRCodeDisplay({ data, size = 200, showDownload = true }: QRCodeD
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Error downloading QR code:', error);
+      logger.error('Error downloading QR code:', {}, error);
     }
   };
 

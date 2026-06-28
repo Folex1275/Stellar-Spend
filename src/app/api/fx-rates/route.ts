@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextResponse } from "next/server";
 
 export const maxDuration = 10;
@@ -38,7 +39,7 @@ export async function GET() {
       { headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=60" } }
     );
   } catch (error) {
-    console.error("fx-rates error:", error);
+    logger.error("fx-rates error:", {}, error);
     return NextResponse.json({ error: "Failed to fetch rates" }, { status: 500 });
   }
 }

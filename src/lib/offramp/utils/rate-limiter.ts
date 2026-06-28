@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Enhanced rate limiter with:
  * - User-based and IP-based limiting
@@ -119,7 +120,7 @@ export class SlidingWindowRateLimiter {
 // ─── Violation Logging ────────────────────────────────────────────────────────
 
 function logViolation(namespace: string, key: string, count: number, limit: number): void {
-  console.warn(
+  logger.warn(
     JSON.stringify({
       event: "rate_limit.violation",
       timestamp: new Date().toISOString(),

@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { createHash } from 'crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 import type { PoolClient } from 'pg';
@@ -331,7 +332,7 @@ export async function withIdempotency(
       ttlMs
     );
   } catch (error) {
-    console.error('Failed to persist idempotency result:', error);
+    logger.error('Failed to persist idempotency result:', {}, error);
     try {
       await clearIdempotencyRecord(
         idempotencyKey,
@@ -339,7 +340,7 @@ export async function withIdempotency(
         request.nextUrl.pathname
       );
     } catch (cleanupError) {
-      console.error('Failed to clear idempotency record after persistence error:', cleanupError);
+      logger.error('Failed to clear idempotency record after persistence error:', {}, cleanupError);
     }
   }
 

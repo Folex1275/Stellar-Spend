@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 "use client";
 
 import React, { Component, type ErrorInfo, type ReactNode } from "react";
@@ -28,7 +29,7 @@ export class ErrorBoundary extends Component<Props, State> {
     });
     this.setState({ eventId: eventId ?? null });
     this.props.onError?.(error, info);
-    console.error("[ErrorBoundary]", error, info.componentStack);
+    logger.error("ErrorBoundary", { componentStack: info.componentStack }, error);
   }
 
   handleReset = () => {

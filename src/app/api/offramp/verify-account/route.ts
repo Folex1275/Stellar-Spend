@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { env } from '@/lib/env';
 
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ accountName });
   } catch (err: unknown) {
-    console.error('Error verifying account via Paycrest:', err);
+    logger.error('Error verifying account via Paycrest:', {}, err);
 
     if (err instanceof Error && 'status' in err) {
       const httpError = err as PaycrestHttpError;

@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { validateConfig, type Config } from './schema';
 import { getEnvironmentConfig } from './environments';
 
@@ -148,7 +149,7 @@ export class ConfigManager {
       try {
         callback(config);
       } catch (error) {
-        console.error('Error in config watcher:', error);
+        logger.error('Error in config watcher:', {}, error);
       }
     });
   }

@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { disputeRepository } from '@/lib/repositories/dispute-repository';
 import { CreateDisputeRequest } from '@/types/disputes';
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(dispute, { status: 201 });
   } catch (error) {
-    console.error('Error creating dispute:', error);
+    logger.error('Error creating dispute:', {}, error);
     return NextResponse.json(
       { error: 'Failed to create dispute' },
       { status: 500 }
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(disputes);
   } catch (error) {
-    console.error('Error fetching disputes:', error);
+    logger.error('Error fetching disputes:', {}, error);
     return NextResponse.json(
       { error: 'Failed to fetch disputes' },
       { status: 500 }

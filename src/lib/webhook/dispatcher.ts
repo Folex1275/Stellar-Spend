@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { randomUUID } from "crypto";
 import type { DeliveryRecord, DeliveryAttempt, WebhookPayload } from "./types";
 import { createRecord, updateRecord } from "./delivery-store";
@@ -99,20 +100,16 @@ export async function attempt(record: DeliveryRecord, signingSecret?: string): P
             attempts: updatedAttempts,
         });
 
-        console.log(
-            JSON.stringify({
-                requestId: randomUUID(),
-                timestamp: new Date().toISOString(),
-                event: "webhook.attempt",
-                deliveryId: record.id,
-                attemptNumber,
-                destinationUrl: record.destinationUrl,
-                httpStatus,
-                durationMs,
-                success,
-                retryable,
-            }),
-        );
+        logger.info("webhook.attempt", {
+            requestId: randomUUID(),
+            deliveryId: record.id,
+            attemptNumber,
+            destinationUrl: record.destinationUrl,
+            httpStatus,
+            durationMs,
+            success,
+            retryable,
+        });
 
         return { success, retryable, httpStatus, durationMs };
     } catch (err) {
@@ -134,21 +131,17 @@ export async function attempt(record: DeliveryRecord, signingSecret?: string): P
             attempts: updatedAttempts,
         });
 
-        console.log(
-            JSON.stringify({
-                requestId: randomUUID(),
-                timestamp: new Date().toISOString(),
-                event: "webhook.attempt",
-                deliveryId: record.id,
-                attemptNumber,
-                destinationUrl: record.destinationUrl,
-                errorType,
-                durationMs,
-                success: false,
-                retryable: true,
-                error: err instanceof Error ? err.message : String(err),
-            }),
-        );
+        logger.info("webhook.attempt", {
+            requestId: randomUUID(),
+            deliveryId: record.id,
+            attemptNumber,
+            destinationUrl: record.destinationUrl,
+            errorType,
+            durationMs,
+            success: false,
+            retryable: true,
+            error: err instanceof Error ? err.message : String(err),
+        });
 
         return { success: false, retryable: true, errorType, durationMs };
     }
@@ -164,15 +157,11 @@ export async function markDelivered(recordId: string, attemptCount: number): Pro
         nextAttemptAt: null,
     });
 
-    console.log(
-        JSON.stringify({
-            requestId: randomUUID(),
-            timestamp: new Date().toISOString(),
-            event: "webhook.delivered",
-            deliveryId: recordId,
-            attemptCount,
-        }),
-    );
+    logger.info("webhook.delivered", {
+        requestId: randomUUID(),
+        deliveryId: recordId,
+        attemptCount,
+    });
 }
 
 /**
@@ -184,16 +173,12 @@ export async function markFailed(record: DeliveryRecord): Promise<void> {
         nextAttemptAt: null,
     });
 
-    console.log(
-        JSON.stringify({
-            requestId: randomUUID(),
-            timestamp: new Date().toISOString(),
-            event: "webhook.failed",
-            deliveryId: record.id,
-            destinationUrl: record.destinationUrl,
-            attemptCount: record.attemptCount,
-        }),
-    );
+    logger.info("webhook.failed", {
+        requestId: randomUUID(),
+        deliveryId: record.id,
+        destinationUrl: record.destinationUrl,
+        attemptCount: record.attemptCount,
+    });
 
     // Write to DLQ and send failure notification
     try {
@@ -202,7 +187,7 @@ export async function markFailed(record: DeliveryRecord): Promise<void> {
         const dlqEntry = await write(record);
         await notify(dlqEntry);
     } catch (err) {
-        console.error("Failed to write DLQ entry or send alert", {
+        logger.error("Failed to write DLQ entry or send alert", {
             deliveryId: record.id,
             error: err instanceof Error ? err.message : String(err),
         });

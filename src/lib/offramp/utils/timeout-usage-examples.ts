@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Usage examples for withTimeout utility
  * These demonstrate how to apply withTimeout to the key operations
@@ -83,7 +84,7 @@ export async function executeOfframpFlowWithTimeouts(
     };
   } catch (error) {
     if (error instanceof Error && error.message.includes('timed out')) {
-      console.error('Operation timed out:', error.message);
+      logger.error('Operation timed out:', {}, error.message);
       // Handle timeout-specific logic (e.g., retry, user notification)
     }
     throw error;

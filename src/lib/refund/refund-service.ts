@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Automated refund service for failed/expired transactions.
  */
@@ -141,5 +142,5 @@ export async function processEligibleRefunds(userAddress?: string): Promise<Refu
  * Emits a refund notification (structured log; extend with email/webhook as needed).
  */
 function emitRefundNotification(notification: RefundNotification): void {
-  console.log(JSON.stringify({ event: 'refund.processed', ...notification }));
+    logger.info('refund.processed', { ...notification });
 }

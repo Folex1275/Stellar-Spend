@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { globalContainer } from '@/lib/di';
 import { SERVICE_KEYS } from '@/lib/di/registry';
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(share, { status: 201 });
   } catch (error) {
-    console.error('Error creating share link:', error);
+    logger.error('Error creating share link:', {}, error);
     return NextResponse.json(
       { error: 'Failed to create share link' },
       { status: 500 }
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(shares);
   } catch (error) {
-    console.error('Error fetching share links:', error);
+    logger.error('Error fetching share links:', {}, error);
     return NextResponse.json(
       { error: 'Failed to fetch share links' },
       { status: 500 }

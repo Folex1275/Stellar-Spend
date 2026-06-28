@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { SorobanEventIndexer } from '@/lib/stellar/event-indexer';
 import { db } from '@/lib/db';
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Event indexing failed:', error);
+    logger.error('Event indexing failed:', {}, error);
     return NextResponse.json(
       { error: 'Event indexing failed', message: String(error) },
       { status: 500 }
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest) {
       lastProcessedAt: state.lastProcessedAt.toISOString(),
     });
   } catch (error) {
-    console.error('State check failed:', error);
+    logger.error('State check failed:', {}, error);
     return NextResponse.json(
       { error: 'State check failed', message: String(error) },
       { status: 500 }

@@ -19,6 +19,12 @@ export default [
     ignores: [".next/**", "node_modules/**", "public/sw.js"],
   },
   {
+    files: ["src/lib/logger.ts"],
+    rules: {
+      "no-console": "off",
+    },
+  },
+  {
     files: ["**/*.{js,jsx,ts,tsx}"],
     languageOptions: {
       parser: tsParser,
@@ -54,6 +60,7 @@ export default [
       "react/prop-types": "off",
       "react/no-unescaped-entities": "off",
       "@next/next/no-img-element": "warn",
+      "no-console": "error",
     },
   },
 ];

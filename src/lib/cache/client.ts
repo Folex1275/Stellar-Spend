@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Redis client configuration for caching layer.
  * Uses ioredis-compatible interface; falls back to in-memory store when Redis is unavailable.
@@ -62,7 +63,7 @@ export function getCacheClient(): CacheClient {
 
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) {
-    console.warn("[cache] REDIS_URL not set — using in-memory cache fallback");
+    logger.warn("[cache] REDIS_URL not set — using in-memory cache fallback");
     _client = new InMemoryCache();
     return _client;
   }
@@ -78,7 +79,7 @@ export function getCacheClient(): CacheClient {
     });
 
     redis.on("error", (err: Error) => {
-      console.error("[cache] Redis error:", err.message);
+      logger.error("[cache] Redis error:", {}, err.message);
     });
 
     _client = {
@@ -114,7 +115,7 @@ export function getCacheClient(): CacheClient {
       },
     };
   } catch {
-    console.warn("[cache] ioredis not available — using in-memory cache fallback");
+    logger.warn("[cache] ioredis not available — using in-memory cache fallback");
     _client = new InMemoryCache();
   }
 
