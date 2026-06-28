@@ -3,6 +3,8 @@
  * Provides CSP directives and validation
  */
 
+import crypto from "crypto";
+
 export interface CSPDirectives {
   "default-src": string[];
   "script-src": string[];
@@ -18,18 +20,32 @@ export interface CSPDirectives {
 }
 
 /**
- * CSP directives configuration
+ * Generate a nonce for CSP
+ */
+export function generateNonce(): string {
+  // Use Web Crypto API (available in Next.js runtime)
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  // Convert to base64 without Buffer (browser-compatible)
+  return btoa(String.fromCharCode(...array));
+}
+
+/**
+ * CSP directives configuration (nonce-based, no unsafe-*)
  */
 export const CSP_DIRECTIVES: CSPDirectives = {
   "default-src": ["'self'"],
   "script-src": [
     "'self'",
-    "'unsafe-inline'",
-    "'unsafe-eval'",
+    "'nonce-{nonce}'",
     "https://cdn.jsdelivr.net",
     "https://cdn.sentry.io",
   ],
-  "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+  "style-src": [
+    "'self'",
+    "'nonce-{nonce}'",
+    "https://fonts.googleapis.com",
+  ],
   "font-src": ["'self'", "https://fonts.gstatic.com", "data:"],
   "img-src": ["'self'", "data:", "blob:", "https:"],
   "connect-src": ["'self'", "https:", "wss:", "https://sentry.io"],
@@ -37,6 +53,7 @@ export const CSP_DIRECTIVES: CSPDirectives = {
   "base-uri": ["'self'"],
   "form-action": ["'self'"],
   "upgrade-insecure-requests": [],
+  "report-uri": ["/api/csp-report"],
 };
 
 /**
