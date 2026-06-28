@@ -15,6 +15,19 @@ export default defineConfig({
     }
   },
   test: {
+    env: {
+      PAYCREST_API_KEY: 'test-key',
+      PAYCREST_WEBHOOK_SECRET: 'test-secret',
+      BASE_PRIVATE_KEY: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      BASE_RETURN_ADDRESS: '0x0000000000000000000000000000000000000000',
+      BASE_RPC_URL: 'https://sepolia.base.org',
+      STELLAR_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org',
+      STELLAR_HORIZON_URL: 'https://horizon-testnet.stellar.org',
+      NEXT_PUBLIC_STELLAR_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org',
+      NEXT_PUBLIC_BASE_RETURN_ADDRESS: '0x0000000000000000000000000000000000000000',
+      NEXT_PUBLIC_STELLAR_USDC_ISSUER: 'GBUQWP3BOUZX34ULNQG23RQ6F4YUSXHTQSXUSMIQ75XABZEYYWRB6HP',
+      DATABASE_URL: 'postgresql://localhost:5432/stellar_test',
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'json-summary', 'html'],
@@ -23,6 +36,7 @@ export default defineConfig({
         functions: 70,
         branches: 60,
         statements: 70,
+        perFile: true,
       },
       exclude: [
         '**/node_modules/**',
