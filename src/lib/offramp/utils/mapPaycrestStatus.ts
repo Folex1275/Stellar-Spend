@@ -1,4 +1,4 @@
-import type { PayoutStatus } from '@/lib/offramp/types';
+import type { PayoutStatus } from '@/lib/transaction-status';
 
 export function mapPaycrestStatus(eventType: string): PayoutStatus | null {
   switch (eventType) {

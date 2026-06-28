@@ -1,3 +1,5 @@
+import type { PayoutStatus } from '@/lib/transaction-status';
+
 export interface PayoutRequest {
   orderId: string;
   amount: string;
@@ -18,7 +20,7 @@ export interface PayoutResponse {
 
 export interface PayoutStatusResponse {
   orderId: string;
-  status: 'pending' | 'processing' | 'settled' | 'failed' | 'refunded';
+  status: PayoutStatus;
   amount: string;
   currency: string;
   settledAt?: string;

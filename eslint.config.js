@@ -63,4 +63,33 @@ export default [
       "no-console": "error",
     },
   },
+  // Module boundary enforcement: app/components/hooks must use barrel imports
+  {
+    files: [
+      "src/app/**/*.{js,jsx,ts,tsx}",
+      "src/components/**/*.{js,jsx,ts,tsx}",
+      "src/hooks/**/*.{js,jsx,ts,tsx}",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            { group: ["@/lib/services/*"], message: "Import from '@/lib/services' instead of deep importing." },
+            { group: ["@/lib/clients/*"], message: "Import from '@/lib/clients' instead of deep importing." },
+            { group: ["@/lib/wallets/*"], message: "Import from '@/lib/wallets' instead of deep importing." },
+            { group: ["@/lib/repositories/*"], message: "Import from '@/lib/repositories' instead of deep importing." },
+            { group: ["@/lib/validators/*"], message: "Import from '@/lib/validators' instead of deep importing." },
+            { group: ["@/lib/middleware/*"], message: "Import from '@/lib/middleware' instead of deep importing." },
+            { group: ["@/lib/notifications/*"], message: "Import from '@/lib/notifications' instead of deep importing." },
+            { group: ["@/lib/webhook/*"], message: "Import from '@/lib/webhook' instead of deep importing." },
+            { group: ["@/lib/cache/*"], message: "Import from '@/lib/cache' instead of deep importing." },
+            { group: ["@/lib/events/*"], message: "Import from '@/lib/events' instead of deep importing." },
+            { group: ["@/lib/security/*"], message: "Import from '@/lib/security' instead of deep importing." },
+            { group: ["@/lib/errors/*"], message: "Import from '@/lib/errors' instead of deep importing." },
+          ],
+        },
+      ],
+    },
+  },
 ];
