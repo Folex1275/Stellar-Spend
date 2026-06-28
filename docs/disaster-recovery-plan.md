@@ -164,26 +164,49 @@ This document outlines the disaster recovery procedures for Stellar-Spend, ensur
 
 ## Testing
 
-### Monthly DR Drills
+### Automated DR Drills
+
+DR drills run automatically via the GitHub Actions workflow (`.github/workflows/dr-drill.yml`) every Monday at 02:00 UTC, and can be triggered manually.
 
 ```bash
-# Test backup restoration
+# Run drill against staging (default)
 ./scripts/test-disaster-recovery.sh staging
 
-# Test failover
-./scripts/test-failover.sh staging
+# Run drill against production
+./scripts/test-disaster-recovery.sh production
 
-# Test data recovery
-./scripts/test-data-recovery.sh staging
+# Override RTO/RPO targets
+RTO_TARGET_MINUTES=45 RPO_TARGET_MINUTES=15 ./scripts/test-disaster-recovery.sh staging
 ```
+
+The script checks:
+1. Backup vault existence
+2. Completed recent backups
+3. RDS backup retention and Multi-AZ configuration
+4. S3 backup bucket accessibility, encryption, and versioning
+5. Latest recovery point identification
+6. **RPO assertion** — backup age ≤ RPO target (default 30 min)
+7. **RTO estimate** — expected restore time ≤ RTO target (default 60 min)
+8. Backup encryption
+9. DR script availability (`restore-db.sh`, `verify-backup.sh`)
+
+A timestamped report is written to `dr-drill-report-<env>-<timestamp>.txt` and a Slack notification is sent if `SLACK_WEBHOOK_URL` is configured.
 
 ### Quarterly Full DR Test
 
 - Restore to secondary region
 - Run full test suite
 - Verify all services
-- Document findings
+- Document findings below
 - Update procedures
+
+## Drill Results
+
+| Date | Environment | Result | RPO (actual) | RTO (est.) | Notes |
+|------|-------------|--------|-------------|------------|-------|
+| — | — | — | — | — | Awaiting first automated drill run |
+
+> Drill reports are automatically uploaded as GitHub Actions artifacts and appended here after each quarterly full test.
 
 ## Monitoring
 

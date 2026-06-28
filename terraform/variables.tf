@@ -197,3 +197,41 @@ variable "alarm_sns_arn" {
   type        = string
   default     = ""
 }
+
+# ── Cost Monitoring ───────────────────────────────────────────────────────────
+
+variable "cost_center" {
+  description = "Cost center tag for cost allocation (e.g. engineering)"
+  type        = string
+  default     = "engineering"
+}
+
+variable "owner_email" {
+  description = "Owner/team email for resource tagging"
+  type        = string
+  default     = "devops@stellar-spend.com"
+}
+
+variable "cost_alert_email" {
+  description = "Email address to receive budget and cost anomaly alerts"
+  type        = string
+  default     = "devops@stellar-spend.com"
+}
+
+variable "monthly_budget_limit" {
+  description = "Total monthly budget limit in USD"
+  type        = number
+  default     = 1000
+}
+
+variable "monthly_budget_by_service" {
+  description = "Per-service monthly budget limits in USD (service name -> limit)"
+  type        = map(number)
+  default = {
+    "Amazon Elastic Compute Cloud - Compute" = 400
+    "Amazon Relational Database Service"     = 300
+    "Amazon Simple Storage Service"          = 100
+    "AWS Lambda"                             = 50
+    "Amazon CloudFront"                      = 100
+  }
+}
