@@ -4,6 +4,7 @@ import type {
   PayoutStatus 
 } from '../types';
 import type { PayoutProviderAdapter, PayoutHealth } from './payout-provider';
+import { HttpClient } from '../../clients/http-client';
 
 const PAYCREST_STATUS_MAP: Record<string, PayoutStatus> = {
   'payment_order.pending':   'pending',
@@ -32,102 +33,35 @@ export class PaycrestHttpError extends Error {
 }
 
 export class PaycrestAdapter implements PayoutProviderAdapter {
-  private apiUrl = 'https://api.paycrest.io/v1';
+  private http: HttpClient;
 
-  constructor(private apiKey: string) {}
-
-  /**
-   * Private fetch method with authentication and timeout
-   */
-  private async fetch(endpoint: string, options: RequestInit = {}) {
-    const url = `${this.apiUrl}${endpoint}`;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          'API-Key': this.apiKey,
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-        signal: controller.signal,
-      });
-
-      let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        // Fallback for non-JSON responses
-      }
-
-      if (!response.ok) {
-        throw new PaycrestHttpError(
-          data?.message || response.statusText || 'Unknown error',
-          response.status,
-          data
-        );
-      }
-
-      // Return data.data if it exists, otherwise return data
-      return data?.data ?? data;
-    } catch (error: any) {
-      if (error instanceof PaycrestHttpError) {
-        throw error;
-      }
-      
-      if (error.name === 'AbortError') {
-        throw new PaycrestHttpError('Request timeout', 504);
-      }
-      
-      // Map network errors to 502
-      throw new PaycrestHttpError(error.message || 'Network error', 502);
-    } finally {
-      clearTimeout(timeoutId);
-    }
+  constructor(apiKey: string) {
+    this.http = new HttpClient({
+      baseUrl: 'https://api.paycrest.io/v1',
+      headers: { 'API-Key': apiKey, 'Content-Type': 'application/json' },
+    });
   }
 
-  /**
-   * Implement createOrder(request: PayoutOrderRequest)
-   */
   async createOrder(request: PayoutOrderRequest): Promise<PayoutOrderResponse> {
-    return this.fetch('/sender/orders', {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
+    return this.http.post('/sender/orders', request);
   }
 
-  /**
-   * Implement getOrderStatus(orderId: string)
-   */
   async getOrderStatus(orderId: string): Promise<{ status: PayoutStatus; id: string }> {
-    const response = await this.fetch(`/sender/orders/${orderId}`, {
-      method: 'GET',
-    });
-    
-    // Map response status to PayoutStatus type
-    return {
-      status: response.status as PayoutStatus,
-      id: response.id,
-    };
+    const response: any = await this.http.get(`/sender/orders/${orderId}`);
+    return { status: response.status as PayoutStatus, id: response.id };
   }
 
-  // PayoutProviderAdapter requirements
   async getCurrencies(): Promise<Array<{ code: string; name: string; symbol: string }>> {
-    return this.fetch('/sender/currencies');
+    return this.http.get('/sender/currencies');
   }
 
   async getInstitutions(currency: string): Promise<Array<{ code: string; name: string }>> {
-    return this.fetch(`/sender/institutions/${currency}`);
+    return this.http.get(`/sender/institutions/${currency}`);
   }
 
   async verifyAccount(institution: string, accountIdentifier: string): Promise<string> {
     try {
-      const response = await this.fetch('/sender/verify-account', {
-        method: 'POST',
-        body: JSON.stringify({ institution, accountIdentifier }),
-      });
+      const response: any = await this.http.post('/sender/verify-account', { institution, accountIdentifier });
       return response?.accountName || response?.data || '';
     } catch {
       return '';
@@ -137,7 +71,7 @@ export class PaycrestAdapter implements PayoutProviderAdapter {
   async getHealth(): Promise<PayoutHealth> {
     const start = Date.now();
     try {
-      await this.fetch('/sender/currencies');
+      await this.http.get('/sender/currencies');
       return { ok: true, latencyMs: Date.now() - start };
     } catch (err) {
       return { ok: false, latencyMs: Date.now() - start, error: err instanceof Error ? err.message : 'Unknown error' };
@@ -155,7 +89,7 @@ export class PaycrestAdapter implements PayoutProviderAdapter {
     if (options?.providerId) queryParams.set('provider_id', options.providerId);
 
     const qs = queryParams.toString();
-    const response = await this.fetch(
+    const response: any = await this.http.get(
       `/rates/${encodeURIComponent(token)}/${encodeURIComponent(amount)}/${encodeURIComponent(currency)}${qs ? `?${qs}` : ''}`
     );
 

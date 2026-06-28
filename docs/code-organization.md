@@ -1,134 +1,75 @@
-# Code Organization Guide
+# Code Organization & Module Boundaries
 
-## Directory Structure
+## Module Map
 
 ```
 src/
-├── app/                    # Next.js App Router
-│   ├── api/               # API routes
-│   ├── layout.tsx         # Root layout
-│   └── page.tsx           # Home page
-├── components/            # React components
-│   ├── design-system/     # Design system components
-│   ├── skeletons/         # Loading skeletons
-│   ├── ui/                # Base UI components
-│   └── *.tsx              # Feature components
-├── contexts/              # React contexts
-├── data/                  # Static data
-├── hooks/                 # Custom React hooks
-├── lib/                   # Shared utilities and services
-│   ├── api-keys/          # API key management
-│   ├── api-versioning/    # API versioning
-│   ├── cache/             # Caching utilities
-│   ├── clients/           # External service clients
-│   ├── config/            # Configuration
-│   ├── db/                # Database utilities
-│   ├── di/                # Dependency injection
-│   ├── events/            # Event bus
-│   ├── graphql/           # GraphQL utilities
-│   ├── i18n/              # Internationalization
-│   ├── middleware/        # Express middleware
-│   ├── notifications/     # Notification system
-│   ├── offramp/           # Offramp feature
-│   ├── polling/           # Polling utilities
-│   ├── repositories/      # Data repositories
-│   ├── services/          # Business logic services
-│   ├── stellar/           # Stellar blockchain utilities
-│   ├── validators/        # Validation schemas and services
-│   ├── wallets/           # Wallet adapters
-│   ├── webhook/           # Webhook handling
-│   └── *.ts               # Utility modules
-├── test/                  # Test utilities and mocks
-└── types/                 # TypeScript type definitions
+├── app/               # Next.js App Router (pages, API routes)
+│   ├── api/           # API route handlers — thin wrappers, delegate to lib/
+│   └── page.tsx       # Main UI page
+├── components/        # React UI components
+├── hooks/             # React hooks (useX pattern)
+├── lib/               # Core business logic (no React)
+│   ├── clients/       # HTTP clients for external APIs (Paycrest, Allbridge)
+│   ├── services/      # Business services (quote, bridge, payout, etc.)
+│   ├── offramp/       # Offramp domain: types, adapters, utils
+│   │   ├── types/     # Domain types (re-exported via offramp/index.ts)
+│   │   ├── adapters/  # Provider adapters
+│   │   └── utils/     # Offramp utilities
+│   ├── onramp/        # Onramp domain
+│   ├── wallets/       # Wallet adapters (Freighter, Lobstr)
+│   ├── types/         # Shared/branded types, discriminated unions
+│   ├── validators/    # Input validation
+│   ├── repositories/  # Data access layer
+│   ├── db/            # Database client
+│   ├── cache/         # Cache service
+│   ├── events/        # Event bus
+│   ├── webhook/       # Webhook delivery
+│   ├── notifications/ # Notification service
+│   ├── polling/       # Polling utilities
+│   ├── middleware/    # API middleware (rate-limit, auth, etc.)
+│   ├── security/      # Encryption, sanitization
+│   ├── config/        # App configuration
+│   ├── feature-flags/ # Feature flag evaluation
+│   ├── errors/        # Custom error classes
+│   ├── di/            # Dependency injection container
+│   ├── ledger/        # Double-entry ledger
+│   ├── stellar/       # Stellar-specific utilities
+│   ├── graphql/       # GraphQL schema & resolvers
+│   ├── api-keys/      # API key management
+│   ├── api-versioning/# API version negotiation
+│   ├── i18n/          # Internationalisation
+│   └── index.ts       # Public barrel — only import lib via this
+├── contexts/          # React contexts
+├── types/             # Global TypeScript type declarations
+└── data/              # Static data
 ```
 
-## Module Organization Principles
+## Boundary Rules
 
-### 1. Feature Modules
-Group related functionality into feature modules:
-- Each feature has its own directory
-- Contains types, services, components, and utilities
-- Exports public API via barrel exports (index.ts)
+1. **App layer** (`src/app/`) imports from `@/lib` (via barrel), `@/components`, `@/hooks`
+2. **Components** import from `@/lib` (via barrel), `@/hooks`, `@/contexts`, other `@/components`
+3. **Hooks** import from `@/lib` (via barrel), `@/contexts`
+4. **Lib modules** import from their own module OR from sibling modules via their barrel (`@/lib/services`, not `@/lib/services/payout.service`)
+5. **No circular dependencies** between lib modules
 
-### 2. Barrel Exports
-Use index.ts files to export public APIs:
+## Cross-module Import Rule
 
-```typescript
-// src/lib/validators/index.ts
-export * from './schemas';
-export * from './service';
-export { ValidationService } from './service';
+Forbidden:
+```ts
+import { payoutService } from '@/lib/services/payout.service'; // deep import ❌
+```
+Allowed:
+```ts
+import { payoutService } from '@/lib/services'; // via barrel ✅
 ```
 
-### 3. Layered Architecture
-- **Components**: UI layer (React components)
-- **Services**: Business logic layer
-- **Repositories**: Data access layer
-- **Utilities**: Cross-cutting concerns
+The ESLint `no-restricted-imports` rule enforces this for `src/app/`, `src/components/`, and `src/hooks/`.
 
-### 4. Naming Conventions
-- Services: `*.service.ts`
-- Adapters: `*.adapter.ts`
-- Utilities: `*.ts` or `*.util.ts`
-- Tests: `*.test.ts` or `*.spec.ts`
-- Types: `*.ts` or `types.ts`
+## Adding a New Module
 
-## Import Patterns
-
-### Absolute Imports
-Use path aliases for cleaner imports:
-
-```typescript
-// ✅ Good
-import { ValidationService } from '@/lib/validators';
-import { Button } from '@/components/ui';
-
-// ❌ Avoid
-import { ValidationService } from '../../../lib/validators';
-```
-
-### Barrel Exports
-Import from barrel exports:
-
-```typescript
-// ✅ Good
-import { ValidationService, amountSchema } from '@/lib/validators';
-
-// ❌ Avoid
-import { ValidationService } from '@/lib/validators/service';
-import { amountSchema } from '@/lib/validators/schemas';
-```
-
-## Feature Module Template
-
-```
-src/lib/feature/
-├── index.ts              # Barrel export
-├── service.ts            # Business logic
-├── types.ts              # Type definitions
-├── adapter.ts            # External integration
-├── repository.ts         # Data access
-└── service.test.ts       # Tests
-```
-
-## Best Practices
-
-1. **Keep modules focused** - Single responsibility principle
-2. **Use barrel exports** - Simplify imports
-3. **Organize by feature** - Not by type
-4. **Minimize circular dependencies** - Use dependency injection
-5. **Co-locate related code** - Keep related files together
-6. **Document module purpose** - Add README or comments
-7. **Use consistent naming** - Follow conventions
-8. **Export public API only** - Hide implementation details
-
-## Refactoring Checklist
-
-- [ ] Group related functionality
-- [ ] Create barrel exports
-- [ ] Update import paths
-- [ ] Remove circular dependencies
-- [ ] Add module documentation
-- [ ] Update tests
-- [ ] Verify build succeeds
-- [ ] Check bundle size
+1. Create `src/lib/<module>/` directory
+2. Add an `index.ts` that explicitly exports the public surface
+3. Add the module to `src/lib/index.ts`
+4. Document the module in this file
+5. Add the barrel path to the `no-restricted-imports` ESLint rule

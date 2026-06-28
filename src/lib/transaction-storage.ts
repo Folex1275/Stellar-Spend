@@ -1,3 +1,5 @@
+import type { TransactionStatus, PayoutStatus, BridgeStatus } from '@/lib/transaction-status';
+
 export interface Transaction {
   id: string;
   timestamp: number;
@@ -11,16 +13,16 @@ export interface Transaction {
   paycrestFee?: string;
   totalFee?: string;
   stellarTxHash?: string;
-  bridgeStatus?: string;
+  bridgeStatus?: BridgeStatus;
   payoutOrderId?: string;
-  payoutStatus?: string;
+  payoutStatus?: PayoutStatus;
   beneficiary: {
     institution: string;
     accountIdentifier: string;
     accountName: string;
     currency: string;
   };
-  status: 'pending' | 'completed' | 'failed' | 'reversed' | 'partially_reversed';
+  status: TransactionStatus;
   error?: string;
   /** User-supplied note for this transaction (max 500 chars) */
   note?: string;

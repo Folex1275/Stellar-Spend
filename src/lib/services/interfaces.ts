@@ -2,6 +2,8 @@
  * Service layer interfaces for dependency injection
  */
 
+import type { PayoutStatus as CanonicalPayoutStatus } from '@/lib/transaction-status';
+
 export interface IQuoteService {
   getQuote(amount: string, currency: string, feeMethod: string): Promise<QuoteResult>;
   validateAmount(amount: string): boolean;
@@ -16,7 +18,7 @@ export interface IBridgeService {
 
 export interface IPayoutService {
   createOrder(params: CreateOrderParams): Promise<PayoutOrder>;
-  getStatus(orderId: string): Promise<PayoutStatus>;
+  getStatus(orderId: string): Promise<PayoutStatusInfo>;
   executePayout(orderId: string, amount: string): Promise<ExecutePayoutResult>;
 }
 
@@ -88,17 +90,20 @@ export interface BeneficiaryInfo {
 
 export interface PayoutOrder {
   orderId: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: CanonicalPayoutStatus;
   amount: string;
   currency: string;
 }
 
-export interface PayoutStatus {
+export interface PayoutStatusInfo {
   orderId: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: CanonicalPayoutStatus;
   progress: number;
   estimatedTime: number;
 }
+
+/** @deprecated Use PayoutStatusInfo */
+export type PayoutStatus = PayoutStatusInfo;
 
 export interface ExecutePayoutResult {
   txHash: string;

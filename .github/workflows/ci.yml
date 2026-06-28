@@ -199,6 +199,25 @@ jobs:
           path: bundle-stats.txt
           retention-days: 14
 
+  # ── Stage 3: Dead-code analysis ───────────────────────────────────────────────
+  dead-code-check:
+    name: Dead-Code Analysis (knip)
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --frozen-lockfile
+
+      - name: Run dead-code analysis
+        run: npm run dead-code:ci
+
   # ── Stage 4: E2E against built app ────────────────────────────────────────────
   e2e:
     name: E2E Tests (Playwright vs built app)
