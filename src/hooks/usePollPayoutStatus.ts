@@ -4,9 +4,8 @@ import { useCallback } from 'react';
 import type { PayoutStatus } from '@/lib/offramp/types';
 import { TransactionStorage } from '@/lib/transaction-storage';
 import type { OfframpStep } from '@/types/stellaramp';
-import { usePollingManager, DurationExceededError, ConsecutiveErrorsExceededError } from '@/lib/polling/polling-manager';
-import type { StatusResponse } from '@/lib/polling/polling-manager';
 import { PAYOUT_CONFIG } from '@/lib/polling/backoff';
+import { useGenericPolling } from './useGenericPolling';
 
 const TERMINAL_STATES: PayoutStatus[] = ['validated', 'settled', 'refunded', 'expired'];
 
@@ -18,6 +17,7 @@ interface PollPayoutStatusOptions {
 
 /**
  * Polls GET /api/offramp/status/{orderId} using exponential backoff, up to 10 min.
+ * Delegates to useGenericPolling for the core polling loop.
  * - "validated" | "settled"  → calls onSettling(), resolves
  * - "refunded" | "expired"   → rejects with descriptive error
  * - 5 consecutive HTTP errors → rejects with descriptive connectivity error
@@ -25,60 +25,45 @@ interface PollPayoutStatusOptions {
  * Updates TransactionStorage on every poll.
  */
 export function usePollPayoutStatus() {
-  const { start } = usePollingManager(PAYOUT_CONFIG);
+  const { pollStatus } = useGenericPolling<PayoutStatus>({
+    config: PAYOUT_CONFIG,
+    terminalStates: TERMINAL_STATES,
+    throwOnTimeout: true,
+    throwOnConsecutiveErrors: true,
+  });
 
   const pollPayoutStatus = useCallback(
     async (orderId: string, { transactionId, onSettling }: PollPayoutStatusOptions): Promise<void> => {
-      const fetchFn = async (id: string, signal: AbortSignal): Promise<StatusResponse> => {
-        const res = await fetch(`/api/offramp/status/${id}`, {
-          cache: 'no-store',
-          signal,
-        });
-
-        const data: { status?: PayoutStatus; error?: string } = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error ?? 'Failed to fetch payout status');
-        }
-
-        const status: PayoutStatus = (data.status ?? 'pending') as PayoutStatus;
-
-        // Persist each poll result
-        TransactionStorage.update(transactionId, { payoutStatus: status });
-
-        const isTerminal = TERMINAL_STATES.includes(status);
-
-        return { status, id, isTerminal };
-      };
+      const endpoint = `/api/offramp/status/${orderId}`;
 
       try {
-        const result = await start(orderId, fetchFn, () => { });
-
-        const status = result.status as PayoutStatus;
-
-        if (status === 'validated' || status === 'settled') {
-          onSettling?.();
-          return;
-        }
-
-        if (status === 'refunded' || status === 'expired') {
-          throw new Error(
-            status === 'refunded'
-              ? 'Payout was refunded. Please contact support.'
-              : 'Payout order expired. Please try again.'
-          );
-        }
+        await pollStatus(
+          endpoint,
+          { id: orderId, onSuccess: onSettling },
+          (data) => {
+            const status: PayoutStatus = (data.status ?? 'pending') as PayoutStatus;
+            TransactionStorage.update(transactionId, { payoutStatus: status });
+            return status;
+          },
+        );
       } catch (err) {
-        if (err instanceof DurationExceededError) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes('Polling timeout')) {
           throw new Error('Payout polling timeout');
         }
-        if (err instanceof ConsecutiveErrorsExceededError) {
+        if (message.includes('consecutive network errors')) {
           throw new Error('Payout polling failed: too many consecutive network errors. Please check your connection.');
+        }
+        if (message.includes('refunded')) {
+          throw new Error('Payout was refunded. Please contact support.');
+        }
+        if (message.includes('expired')) {
+          throw new Error('Payout order expired. Please try again.');
         }
         throw err;
       }
     },
-    [start]
+    [pollStatus]
   );
 
   return { pollPayoutStatus };
