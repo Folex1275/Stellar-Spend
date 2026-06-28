@@ -1,25 +1,38 @@
-import * as Sentry from '@sentry/nextjs';
+/**
+ * Sentry Server Configuration with OpenTelemetry Integration
+ */
 
+import * as Sentry from '@sentry/node';
+import { nodeProfilingIntegration } from '@sentry/profiling-node';
+import { OpenTelemetryIntegration } from '@sentry/opentelemetry';
+
+// Initialize Sentry with OpenTelemetry integration
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
-
-  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
-
-  release: process.env.NEXT_PUBLIC_SENTRY_RELEASE,
-  environment: process.env.NEXT_PUBLIC_ENV ?? 'development',
-
-  // Capture unhandled promise rejections
-  captureUnhandledRejections: true,
-
-  beforeSend(event) {
-    // Redact secrets from breadcrumbs / request data
-    if (event.request?.headers) {
-      const h = event.request.headers as Record<string, string>;
-      if (h['authorization']) h['authorization'] = '[Filtered]';
-      if (h['x-api-key']) h['x-api-key'] = '[Filtered]';
-    }
-    return event;
-  },
-
-  debug: false,
+  environment: process.env.NODE_ENV || 'development',
+  release: process.env.npm_package_version || '1.0.0',
+  
+  // Enable performance monitoring
+  tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0.1'),
+  profilesSampleRate: parseFloat(process.env.SENTRY_PROFILES_SAMPLE_RATE || '0.1'),
+  
+  // Integrations
+  integrations: [
+    // OpenTelemetry integration for trace correlation
+    new OpenTelemetryIntegration({
+      spanProcessor: {
+        onSpan: (span) => {
+          // Add Sentry-specific attributes to spans
+          const transaction = Sentry.getCurrentHub().getScope()?.getTransaction();
+          if (transaction) {
+            span.setAttribute('sentry.transaction', transaction.name);
+          }
+        },
+      },
+    }),
+    nodeProfilingIntegration(),
+  ],
 });
+
+// Export configured Sentry
+export default Sentry;
