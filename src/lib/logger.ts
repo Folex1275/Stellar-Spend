@@ -4,6 +4,9 @@
  * Outputs newline-delimited JSON to stdout so ECS/CloudWatch can ingest,
  * parse, and filter log entries without a sidecar agent.
  *
+ * Log levels controlled via LOG_LEVEL env var: debug | info | warn | error
+ * (default: debug in development, info in production).
+ *
  * Usage:
  *   import { logger } from '@/lib/logger';
  *   logger.info('quote.fetched', { currency, amount });
@@ -34,16 +37,18 @@ export interface LogEntry {
 const REDACT_KEYS = new Set([
   'privatekey', 'private_key', 'apikey', 'api_key', 'secret',
   'password', 'token', 'authorization', 'x-api-key', 'database_url',
+  'session', 'jwt', 'refresh_token', 'refreshToken', 'access_token', 'accessToken',
+  'ssn', 'creditcard', 'credit_card', 'card_number', 'cardnumber',
+  'cvv', 'cvv2', 'routing_number', 'routingnumber', 'iban', 'bic', 'swift',
 ]);
 
 /** PII patterns — values matching these regexes are masked */
 const PII_PATTERNS: Array<{ pattern: RegExp; mask: string }> = [
-  // Email addresses
   { pattern: /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, mask: '[EMAIL]' },
-  // Phone numbers (international and local formats)
   { pattern: /\+?[\d\s\-().]{7,15}\d/g, mask: '[PHONE]' },
-  // Bank account numbers (8–18 consecutive digits)
   { pattern: /\b\d{8,18}\b/g, mask: '[ACCOUNT]' },
+  { pattern: /\b\d{3}-\d{2}-\d{4}\b/g, mask: '[SSN]' },
+  { pattern: /\b(?:\d[ -]*?){13,19}\b/g, mask: '[CARD]' },
 ];
 
 function maskPii(value: string): string {
@@ -56,7 +61,6 @@ function maskPii(value: string): string {
 
 function redact(obj: unknown, depth = 0): unknown {
   if (depth > 6 || obj === null || typeof obj !== 'object') {
-    // Mask PII in string values
     if (typeof obj === 'string') return maskPii(obj);
     return obj;
   }
@@ -66,6 +70,13 @@ function redact(obj: unknown, depth = 0): unknown {
     out[k] = REDACT_KEYS.has(k.toLowerCase()) ? '[REDACTED]' : redact(v, depth + 1);
   }
   return out;
+}
+
+/**
+ * Public redact helper for use outside the logger (e.g. error payloads).
+ */
+export function redactSensitive<T>(data: T): T {
+  return redact(data) as T;
 }
 
 // ── Level ordering ────────────────────────────────────────────────────────────

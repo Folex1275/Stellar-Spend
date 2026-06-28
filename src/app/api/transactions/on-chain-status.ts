@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { SorobanEventIndexer } from '@/lib/stellar/event-indexer';
 import { db } from '@/lib/db';
@@ -66,7 +67,7 @@ export async function GET(req: NextRequest) {
       lastUpdated: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Failed to fetch on-chain status:', error);
+    logger.error('Failed to fetch on-chain status:', {}, error);
     return NextResponse.json(
       { error: 'Failed to fetch status', message: String(error) },
       { status: 500 }

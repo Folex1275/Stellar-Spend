@@ -1,19 +1,38 @@
 /**
- * Service layer interfaces for dependency injection
+ * Service interfaces for dependency injection
+ * Each interface mirrors the public API of its corresponding service class.
  */
 
 import type { PayoutStatus as CanonicalPayoutStatus } from '@/lib/transaction-status';
 
 export interface IQuoteService {
-  getQuote(amount: string, currency: string, feeMethod: string): Promise<QuoteResult>;
-  validateAmount(amount: string): boolean;
+  getQuote(request: {
+    amount: string;
+    currency: string;
+    feeMethod: 'USDC' | 'XLM' | 'stablecoin' | 'native';
+  }): Promise<{
+    destinationAmount: string;
+    rate: number;
+    currency: string;
+    bridgeFee: string;
+    payoutFee: string;
+    estimatedTime: number;
+  }>;
 }
 
 export interface IBridgeService {
-  buildTransaction(params: BuildTxParams): Promise<BuildTxResult>;
-  submitTransaction(xdr: string): Promise<SubmitTxResult>;
-  getStatus(txHash: string): Promise<BridgeStatus>;
-  getGasFeeOptions(amount: string): Promise<GasFeeOption[]>;
+  buildTransaction(request: {
+    amount: string;
+    fromAddress: string;
+    toAddress: string;
+    feePaymentMethod?: 'native' | 'stablecoin';
+  }): Promise<{
+    xdr: string;
+    sourceToken: { symbol: string; decimals: number; contract?: string; chain: string };
+    destinationToken: { symbol: string; decimals: number; contract?: string; chain: string };
+  }>;
+  submitTransaction(request: { xdr: string; signature: string }): Promise<{ txHash: string; status: string }>;
+  getTransactionStatus(txHash: string): Promise<{ status: string; bridgeAmount?: string }>;
 }
 
 export interface IPayoutService {

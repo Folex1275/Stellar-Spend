@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -58,7 +59,7 @@ export function useBackgroundSync() {
         setFailedTransactions(request.result);
       };
     } catch (err) {
-      console.error("Failed to load failed transactions:", err);
+      logger.error("Failed to load failed transactions:", {}, err);
     }
   }, []);
 
@@ -106,7 +107,7 @@ export function useBackgroundSync() {
         await registration.sync.register("sync-failed-transactions");
       }
     } catch (err) {
-      console.error("Failed to add failed transaction:", err);
+      logger.error("Failed to add failed transaction:", {}, err);
     }
   };
 
@@ -119,7 +120,7 @@ export function useBackgroundSync() {
 
       setFailedTransactions((prev) => prev.filter((tx) => tx.id !== txId));
     } catch (err) {
-      console.error("Failed to remove failed transaction:", err);
+      logger.error("Failed to remove failed transaction:", {}, err);
     }
   };
 
@@ -137,7 +138,7 @@ export function useBackgroundSync() {
       }
       return false;
     } catch (err) {
-      console.error("Failed to retry transaction:", err);
+      logger.error("Failed to retry transaction:", {}, err);
       return false;
     }
   };
@@ -150,13 +151,13 @@ export function useBackgroundSync() {
       });
 
       if (result) {
-        console.log(`Synced ${result.synced.length} transactions`);
+        logger.info(`Synced ${result.synced.length} transactions`);
         if (result.conflicts.length > 0) {
-          console.warn(`${result.conflicts.length} conflicts detected`);
+          logger.warn(`${result.conflicts.length} conflicts detected`);
         }
       }
     } catch (err) {
-      console.error("Error syncing history:", err);
+      logger.error("Error syncing history:", {}, err);
     } finally {
       setSyncStatus(prev => ({ ...prev, syncing: false }));
       updateSyncStatus();

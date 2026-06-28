@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextResponse, type NextRequest } from 'next/server';
 import {
   generateReconciliationReport,
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Alert generation error:', error);
+    logger.error('Alert generation error:', {}, error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Failed to generate alerts',

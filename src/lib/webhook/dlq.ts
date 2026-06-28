@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { randomUUID } from "crypto";
 import { pool } from "../db/client";
 import { createRecord } from "./delivery-store";
@@ -76,7 +77,7 @@ export async function write(record: DeliveryRecord): Promise<DLQEntry> {
         ]);
         return rowToEntry(result.rows[0]);
     } catch (err) {
-        console.error("Failed to write DLQ entry", { record: JSON.stringify(record), error: err });
+        logger.error("Failed to write DLQ entry", { record: JSON.stringify(record), error: err });
         throw new DLQError("Failed to write DLQ entry", err);
     }
 }

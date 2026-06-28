@@ -70,18 +70,19 @@ resource "aws_sns_topic_subscription" "cost_alerts_email" {
   endpoint  = var.cost_alert_email
 }
 
-# ── Budget Alerts ──────────────────────────────────────────────────────────
+# ── Budget Alerts — Total Monthly ─────────────────────────────────────────
 
 resource "aws_budgets_budget" "monthly" {
   name              = "${local.name_prefix}-monthly-budget"
-  budget_type       = "MONTHLY"
+  budget_type       = "COST"
   limit_unit        = "USD"
   limit_value       = var.monthly_budget_limit
   time_period_start = "2026-01-01_00:00"
   time_period_end   = "2087-12-31_23:59"
 
-  cost_filters = {
-    TagKeyValue = ["Project$stellar-spend"]
+  cost_filter {
+    name   = "TagKeyValue"
+    values = ["user:Environment$${var.environment}"]
   }
 
   notification {
@@ -89,8 +90,7 @@ resource "aws_budgets_budget" "monthly" {
     notification_type          = "FORECASTED"
     threshold                  = 80
     threshold_type             = "PERCENTAGE"
-    notification_channel_type  = "SNS"
-    notification_channel_value = aws_sns_topic.cost_alerts.arn
+    subscriber_sns_topic_arns  = [aws_sns_topic.cost_alerts.arn]
   }
 
   notification {
@@ -98,8 +98,48 @@ resource "aws_budgets_budget" "monthly" {
     notification_type          = "ACTUAL"
     threshold                  = 100
     threshold_type             = "PERCENTAGE"
-    notification_channel_type  = "SNS"
-    notification_channel_value = aws_sns_topic.cost_alerts.arn
+    subscriber_sns_topic_arns  = [aws_sns_topic.cost_alerts.arn]
+  }
+
+  tags = local.cost_tags
+}
+
+# ── Budget Alerts — Per Service ────────────────────────────────────────────
+
+resource "aws_budgets_budget" "per_service" {
+  for_each = var.monthly_budget_by_service
+
+  name              = "${local.name_prefix}-budget-${replace(lower(split(" ", each.key)[0]), "/[^a-z0-9]/", "-")}"
+  budget_type       = "COST"
+  limit_unit        = "USD"
+  limit_value       = each.value
+  time_period_start = "2026-01-01_00:00"
+  time_period_end   = "2087-12-31_23:59"
+
+  cost_filter {
+    name   = "Service"
+    values = [each.key]
+  }
+
+  cost_filter {
+    name   = "TagKeyValue"
+    values = ["user:Environment$${var.environment}"]
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    notification_type          = "FORECASTED"
+    threshold                  = 90
+    threshold_type             = "PERCENTAGE"
+    subscriber_sns_topic_arns  = [aws_sns_topic.cost_alerts.arn]
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    notification_type          = "ACTUAL"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    subscriber_sns_topic_arns  = [aws_sns_topic.cost_alerts.arn]
   }
 
   tags = local.cost_tags
@@ -281,9 +321,11 @@ resource "aws_iam_role_policy" "lambda_cost_optimizer" {
         Effect = "Allow"
         Action = [
           "ce:GetCostAndUsage",
+          "cloudwatch:GetMetricStatistics",
           "ec2:DescribeInstances",
           "ec2:DescribeVolumes",
           "rds:DescribeDBInstances",
+          "rds:ListTagsForResource",
           "sns:Publish"
         ]
         Resource = "*"

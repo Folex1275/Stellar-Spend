@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextResponse, type NextRequest } from 'next/server';
 import { validateAmount } from '@/lib/offramp/utils/validation';
 import { calculateBridgeAmount } from '@/lib/offramp/utils/quote-fetcher';
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(aggregatedQuotes);
   } catch (error) {
-    console.error('Quote aggregation error:', error);
+    logger.error('Quote aggregation error:', {}, error);
     const message = error instanceof Error ? error.message : 'Unknown error';
     if (message.includes('Invalid') || message.includes('less than')) {
       return NextResponse.json({ error: message }, { status: 400 });

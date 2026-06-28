@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { Pool, PoolClient } from "pg";
 import { recordDbQuery } from "../performance";
 
@@ -19,15 +20,15 @@ const _pool = new Pool(poolConfig);
 
 // Pool event handlers for monitoring
 _pool.on("error", (err: Error) => {
-    console.error("[db-pool] Unexpected error on idle client:", err);
+    logger.error("[db-pool] Unexpected error on idle client:", {}, err);
 });
 
 _pool.on("connect", () => {
-    console.debug("[db-pool] New connection established");
+    logger.debug("[db-pool] New connection established");
 });
 
 _pool.on("remove", () => {
-    console.debug("[db-pool] Connection removed from pool");
+    logger.debug("[db-pool] Connection removed from pool");
 });
 
 // Metrics tracking
@@ -74,5 +75,5 @@ export const pool: Pick<Pool, "query"> = {
 // Graceful shutdown
 export async function closePool(): Promise<void> {
     await _pool.end();
-    console.log("[db-pool] Connection pool closed");
+    logger.info("[db-pool] Connection pool closed");
 }

@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Bundle size monitoring and optimization utilities
  * Tracks bundle metrics and provides optimization recommendations
@@ -43,7 +44,7 @@ export function logBundleMetrics(metrics: BundleMetrics, thresholds = DEFAULT_TH
   }
 
   if (warnings.length > 0) {
-    console.warn("Bundle Size Warnings:", warnings.join("\n"));
+    logger.warn("Bundle Size Warnings", { warnings: warnings.join("\n") });
   }
 }
 

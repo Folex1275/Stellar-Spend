@@ -125,4 +125,3 @@ export class QRCodeService {
   }
 }
 
-export const qrCodeService = new QRCodeService();

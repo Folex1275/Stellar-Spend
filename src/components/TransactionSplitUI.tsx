@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 "use client";
 
 import { useState } from "react";
@@ -178,7 +179,7 @@ export default function TransactionSplitUI({
       SplitStorage.save(split);
       onConfirm(split);
     } catch (err) {
-      console.error("Split execution failed:", err);
+      logger.error("Split execution failed:", {}, err);
     }
   };
 

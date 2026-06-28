@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -57,7 +58,7 @@ export function PriceAlertManager({
         setAlerts(data.alerts || []);
       }
     } catch (error) {
-      console.error("Failed to fetch alerts:", error);
+      logger.error("Failed to fetch alerts:", {}, error);
       showToast("Failed to load price alerts", "error");
     } finally {
       setIsLoading(false);
@@ -104,7 +105,7 @@ export function PriceAlertManager({
           }
         });
       } catch (error) {
-        console.error("Price check failed:", error);
+        logger.error("Price check failed:", {}, error);
       }
     }, 60000);
 

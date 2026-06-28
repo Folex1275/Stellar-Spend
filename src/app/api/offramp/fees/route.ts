@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getDetailedFeeBreakdown } from '@/lib/fee-calculation';
 
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(feeBreakdown);
   } catch (error) {
-    console.error('Fee calculation error:', error);
+    logger.error('Fee calculation error:', {}, error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Failed to calculate fees',

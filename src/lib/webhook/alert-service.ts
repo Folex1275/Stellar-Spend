@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import type { DLQEntry } from "./types";
 import { getWebhookConfig } from "./config";
 
@@ -44,7 +45,7 @@ async function sendAlert(payload: AlertPayload): Promise<void> {
             throw new Error(`Alert endpoint responded with HTTP ${response.status}`);
         }
     } catch (err) {
-        console.error("Failed to deliver webhook alert", {
+        logger.error("Failed to deliver webhook alert", {
             alert: JSON.stringify(payload),
             error: err instanceof Error ? err.message : String(err),
         });

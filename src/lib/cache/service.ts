@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { getCacheClient } from "./client";
 import { TTL, CacheKey } from "./keys";
 
@@ -45,7 +46,7 @@ async function getOrSet<T>(
             const newEntry: CacheEntry<T> = { value, timestamp: Date.now() };
             return client.set(key, JSON.stringify(newEntry), ttl);
           })
-          .catch((err) => console.error(`[cache] Background revalidation failed for ${key}:`, err));
+          .catch((err) => logger.error(`[cache] Background revalidation failed for ${key}:`, {}, err));
         return entry.value;
       }
     } catch {
@@ -138,29 +139,29 @@ export async function warmCache(): Promise<void> {
   const client = getCacheClient();
   const isAlive = await client.ping();
   if (!isAlive) {
-    console.warn("[cache] Cache unavailable — skipping warm-up");
+    logger.warn("[cache] Cache unavailable — skipping warm-up");
     return;
   }
 
-  console.log("[cache] Starting cache warm-up...");
+  logger.info("[cache] Starting cache warm-up...");
 
   try {
     // Warm currencies
     const { getCurrencies } = await import("../currencies");
     await getCachedCurrencies(getCurrencies);
-    console.log("[cache] Warmed: currencies");
+    logger.info("[cache] Warmed: currencies");
   } catch (err) {
-    console.warn("[cache] Failed to warm currencies:", err);
+    logger.warn("[cache] Failed to warm currencies:", err);
   }
 
   try {
     // Warm NGN rate (most common)
     const { getRate } = await import("../services/quote.service");
     await getCachedRate("NGN", () => getRate("NGN"));
-    console.log("[cache] Warmed: NGN rate");
+    logger.info("[cache] Warmed: NGN rate");
   } catch (err) {
-    console.warn("[cache] Failed to warm NGN rate:", err);
+    logger.warn("[cache] Failed to warm NGN rate:", err);
   }
 
-  console.log("[cache] Cache warm-up complete");
+  logger.info("[cache] Cache warm-up complete");
 }

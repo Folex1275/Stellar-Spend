@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Transaction Sync Client
  * Handles communication with server for transaction history synchronization
@@ -32,7 +33,7 @@ export async function syncTransactionHistory(
   const settings = SyncStorage.getSettings();
   
   if (!settings.syncEnabled) {
-    console.log('Sync is disabled');
+    logger.info('Sync is disabled');
     return null;
   }
 
@@ -41,7 +42,7 @@ export async function syncTransactionHistory(
     const serverTransactions = await fetchServerHistory(options.userAddress);
     
     if (!serverTransactions) {
-      console.error('Failed to fetch server history');
+      logger.error('Failed to fetch server history');
       return null;
     }
 
@@ -62,7 +63,7 @@ export async function syncTransactionHistory(
     if (toUpload.length > 0) {
       const uploadSuccess = await uploadTransactions(toUpload, options.userAddress);
       if (!uploadSuccess) {
-        console.error('Failed to upload transactions');
+        logger.error('Failed to upload transactions');
         return null;
       }
     }
@@ -108,7 +109,7 @@ export async function syncTransactionHistory(
       timestamp: Date.now(),
     };
   } catch (error) {
-    console.error('Sync error:', error);
+    logger.error('Sync error:', {}, error);
     return null;
   }
 }
@@ -127,14 +128,14 @@ async function fetchServerHistory(userAddress: string): Promise<Transaction[] | 
     });
 
     if (!response.ok) {
-      console.error('Failed to fetch server history:', response.status);
+      logger.error('Failed to fetch server history:', {}, response.status);
       return null;
     }
 
     const data = await response.json();
     return data.transactions || [];
   } catch (error) {
-    console.error('Error fetching server history:', error);
+    logger.error('Error fetching server history:', {}, error);
     return null;
   }
 }
@@ -161,13 +162,13 @@ async function uploadTransactions(
     });
 
     if (!response.ok) {
-      console.error('Failed to upload transactions:', response.status);
+      logger.error('Failed to upload transactions:', {}, response.status);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error('Error uploading transactions:', error);
+    logger.error('Error uploading transactions:', {}, error);
     return false;
   }
 }

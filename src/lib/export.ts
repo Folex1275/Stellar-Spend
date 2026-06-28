@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import type { Transaction } from "./transaction-storage";
 
 // ---------------------------------------------------------------------------
@@ -213,7 +214,7 @@ export async function exportXLSX(txs: Transaction[], filename = "transactions.xl
 
     writeFile(wb, getTimestampedFilename(filename.replace(".xlsx", ""), "xlsx"));
   } catch (error) {
-    console.error("Excel export failed:", error);
+    logger.error("Excel export failed:", {}, error);
     throw new Error("Failed to export to Excel");
   }
 }

@@ -101,4 +101,3 @@ export class BridgeService {
   }
 }
 
-export const bridgeService = new BridgeService();

@@ -1,5 +1,7 @@
+import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
-import { sharingService } from '@/lib/services/sharing-service';
+import { globalContainer } from '@/lib/di';
+import { SERVICE_KEYS } from '@/lib/di/registry';
 
 export async function GET(
   req: NextRequest,
@@ -8,7 +10,8 @@ export async function GET(
   try {
     const { token } = params;
 
-    const share = await sharingService.getShareLink(token);
+    const svc = await globalContainer.resolve(SERVICE_KEYS.SHARING_SERVICE);
+    const share = await svc.getShareLink(token);
 
     if (!share) {
       return NextResponse.json({ error: 'Share link not found' }, { status: 404 });
@@ -19,7 +22,7 @@ export async function GET(
     }
 
     // Increment view count
-    await sharingService.incrementViewCount(token);
+    await svc.incrementViewCount(token);
 
     // TODO: Fetch transaction details from database
     const preview = {
@@ -35,7 +38,7 @@ export async function GET(
       preview,
     });
   } catch (error) {
-    console.error('Error fetching share:', error);
+    logger.error('Error fetching share:', {}, error);
     return NextResponse.json(
       { error: 'Failed to fetch share' },
       { status: 500 }

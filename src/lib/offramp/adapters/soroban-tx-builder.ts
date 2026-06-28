@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { randomBytes } from 'crypto';
 
@@ -146,7 +147,7 @@ export async function buildSwapAndBridgeTx(
         const oldExp = entry.credentials.address.signatureExpirationLedger;
         const newExp = latestLedger + 500;
         
-        console.log(`Extending auth expiration: old=${oldExp}, new=${newExp}`);
+        logger.info(`Extending auth expiration: old=${oldExp}, new=${newExp}`);
         entry.credentials.address.signatureExpirationLedger = newExp;
       }
     });
@@ -160,7 +161,7 @@ export async function buildSwapAndBridgeTx(
   const simMinFee = parseInt(simulationResponse.minResourceFee || '0');
   const targetFee = Math.ceil((originalFee + simMinFee) * 1.5);
 
-  console.log(`[Fee Bump] originalFee: ${originalFee}, simMinFee: ${simMinFee}, targetFee: ${targetFee}`);
+  logger.info(`[Fee Bump] originalFee: ${originalFee}, simMinFee: ${simMinFee}, targetFee: ${targetFee}`);
 
   // Mutate the assembled tx fee
   (assembledTx as any)._fee = targetFee.toString();

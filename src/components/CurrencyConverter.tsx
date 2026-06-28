@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 "use client";
 
 import {
@@ -44,7 +45,7 @@ export default function CurrencyConverter({
         });
       }
     } catch (error) {
-      console.error("Failed to fetch currencies:", error);
+      logger.error("Failed to fetch currencies:", {}, error);
     }
   }, []);
 
@@ -60,7 +61,7 @@ export default function CurrencyConverter({
         rateUpdatedTimer.current = setTimeout(() => setRateUpdated(false), 1_500);
       }
     } catch (error) {
-      console.error("Failed to fetch rate:", error);
+      logger.error("Failed to fetch rate:", {}, error);
     } finally {
       setLoading(false);
     }

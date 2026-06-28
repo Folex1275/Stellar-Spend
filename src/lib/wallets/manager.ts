@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Wallet Manager - Handles wallet switching and auto-detection
  */
@@ -59,7 +60,7 @@ export class WalletManager {
         try {
           listener(event);
         } catch (err) {
-          console.error(`Error in wallet event listener for ${event.type}:`, err);
+          logger.error(`Error in wallet event listener for ${event.type}:`, {}, err);
         }
       });
     }
@@ -109,7 +110,7 @@ export class WalletManager {
             });
           });
         } catch (err) {
-          console.error('Failed to setup Freighter listener:', err);
+          logger.error('Failed to setup Freighter listener:', {}, err);
         }
       }
     } else if (walletType === 'lobstr') {
@@ -124,7 +125,7 @@ export class WalletManager {
             });
           });
         } catch (err) {
-          console.error('Failed to setup Lobstr listener:', err);
+          logger.error('Failed to setup Lobstr listener:', {}, err);
         }
       }
     }

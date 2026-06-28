@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -82,7 +83,7 @@ export function ReferralDashboard({ userId }: ReferralDashboardProps) {
         setLeaderboard(lbData.leaderboard ?? []);
       }
     } catch (error) {
-      console.error('Failed to fetch referral data', error);
+      logger.error('Failed to fetch referral data', {}, error);
     } finally {
       setLoading(false);
     }
@@ -98,7 +99,7 @@ export function ReferralDashboard({ userId }: ReferralDashboardProps) {
       const data = await res.json();
       setReferralCode(data.code.code);
     } catch (error) {
-      console.error('Failed to generate referral code', error);
+      logger.error('Failed to generate referral code', {}, error);
     }
   };
 
