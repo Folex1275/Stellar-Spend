@@ -67,4 +67,6 @@ export function validateEnv() {
   };
 }
 
-export const env = validateEnv();
+export const env = process.env.VITEST
+  ? ({} as ReturnType<typeof validateEnv>)
+  : validateEnv();

@@ -35,6 +35,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@chromatic-com/storybook": "^5.2.1",
     "@next/bundle-analyzer": "^16.2.1",
     "@playwright/test": "^1.58.2",
@@ -69,14 +70,3 @@
     "vitest": "^4.1.1"
   }
 }
-
-# Add these dependencies to package.json:
-# "@opentelemetry/api": "^1.7.0",
-# "@opentelemetry/auto-instrumentations-node": "^0.43.0",
-# "@opentelemetry/exporter-trace-otlp-http": "^0.48.0",
-# "@opentelemetry/instrumentation-express": "^0.36.0",
-# "@opentelemetry/instrumentation-http": "^0.48.0",
-# "@opentelemetry/instrumentation-pg": "^0.39.0",
-# "@opentelemetry/resources": "^1.20.0",
-# "@opentelemetry/sdk-trace-node": "^1.20.0",
-# "@opentelemetry/semantic-conventions": "^1.20.0"

@@ -170,7 +170,7 @@ async function fetchQuoteFromAllbridge(
   }
 }
 
-function rankQuotes(quotes: ProviderQuote[]): ProviderQuote[] {
+export function rankQuotes(quotes: ProviderQuote[]): ProviderQuote[] {
   const successfulQuotes = quotes.filter((q) => q.success);
 
   if (successfulQuotes.length === 0) {
@@ -195,7 +195,7 @@ function rankQuotes(quotes: ProviderQuote[]): ProviderQuote[] {
   });
 }
 
-function selectBestQuote(quotes: ProviderQuote[]): ProviderQuote | null {
+export function selectBestQuote(quotes: ProviderQuote[]): ProviderQuote | null {
   const successful = quotes.filter(q => q.success);
   if (successful.length === 0) return null;
   const ranked = rankQuotes(quotes);
