@@ -1,4 +1,3 @@
-import { logger } from '@/lib/logger';
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
@@ -63,7 +62,7 @@ export function useNotificationCenter(userAddress: string | null) {
         return events.sort((a, b) => b.createdAt - a.createdAt);
       }
     } catch (err) {
-      logger.error('Failed to load persisted events:', {}, err);
+      console.error('Failed to load persisted events:', err);
     }
     return [];
   }, []);
@@ -76,7 +75,7 @@ export function useNotificationCenter(userAddress: string | null) {
       const toSave = events.slice(0, MAX_EVENTS);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
     } catch (err) {
-      logger.error('Failed to persist events:', {}, err);
+      console.error('Failed to persist events:', err);
     }
   }, []);
 
@@ -204,7 +203,7 @@ export function useNotificationCenter(userAddress: string | null) {
         }
       });
     } catch (err) {
-      logger.error('Failed to aggregate price alerts:', {}, err);
+      console.error('Failed to aggregate price alerts:', err);
     }
   }, [addEvent]);
 
@@ -243,7 +242,7 @@ export function useNotificationCenter(userAddress: string | null) {
           addEvent(event);
         });
       } catch (err) {
-        logger.error('Failed to aggregate transaction updates:', {}, err);
+        console.error('Failed to aggregate transaction updates:', err);
       }
     },
     [addEvent]
@@ -287,7 +286,7 @@ export function useNotificationCenter(userAddress: string | null) {
           addEvent(event);
         });
       } catch (err) {
-        logger.error('Failed to aggregate payout updates:', {}, err);
+        console.error('Failed to aggregate payout updates:', err);
       }
     },
     [addEvent]

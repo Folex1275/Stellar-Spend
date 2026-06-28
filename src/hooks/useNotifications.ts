@@ -1,4 +1,3 @@
-import { logger } from '@/lib/logger';
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -56,7 +55,7 @@ export function useNotifications(userAddress: string | null) {
         // For simplicity, we'll load all deliveries for the user
         // In a real app, you might want to paginate or filter this
         // This would require a new API endpoint
-        logger.info('Fetching all deliveries would require a new endpoint');
+        console.log('Fetching all deliveries would require a new endpoint');
       }
       
       const unreadCount = deliveries.filter(d => !d.metadata?.read).length;

@@ -1,4 +1,3 @@
-import { logger } from '@/lib/logger';
 import { useState, useCallback } from "react";
 
 export function useClipboard(timeout = 2000) {
@@ -7,7 +6,7 @@ export function useClipboard(timeout = 2000) {
   const copy = useCallback(
     async (text: string) => {
       if (!navigator?.clipboard) {
-        logger.warn("Clipboard not supported");
+        console.warn("Clipboard not supported");
         return false;
       }
 
@@ -17,7 +16,7 @@ export function useClipboard(timeout = 2000) {
         setTimeout(() => setIsCopied(false), timeout);
         return true;
       } catch (error) {
-        logger.warn("Copy failed", error);
+        console.warn("Copy failed", error);
         setIsCopied(false);
         return false;
       }
