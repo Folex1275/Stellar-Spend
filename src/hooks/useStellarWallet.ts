@@ -1,4 +1,3 @@
-import { logger } from '@/lib/logger';
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
@@ -90,7 +89,7 @@ export function useStellarWallet(
         setSettings(JSON.parse(stored));
       }
     } catch (err) {
-      logger.error('Failed to load wallet settings:', {}, err);
+      console.error('Failed to load wallet settings:', err);
     }
   }, []);
 
@@ -101,7 +100,7 @@ export function useStellarWallet(
       localStorage.setItem(STORAGE_KEYS.WALLET_SETTINGS, JSON.stringify(newSettings));
       setSettings(newSettings);
     } catch (err) {
-      logger.error('Failed to save wallet settings:', {}, err);
+      console.error('Failed to save wallet settings:', err);
     }
   }, []);
 
@@ -115,7 +114,7 @@ export function useStellarWallet(
         return lastWallet;
       }
     } catch (err) {
-      logger.error('Failed to load last wallet:', {}, err);
+      console.error('Failed to load last wallet:', err);
     }
     return null;
   }, []);
@@ -127,7 +126,7 @@ export function useStellarWallet(
       localStorage.setItem(STORAGE_KEYS.LAST_WALLET, walletType);
       setState(prev => ({ ...prev, lastUsedWallet: walletType }));
     } catch (err) {
-      logger.error('Failed to save last wallet:', {}, err);
+      console.error('Failed to save last wallet:', err);
     }
   }, []);
 
@@ -163,7 +162,7 @@ export function useStellarWallet(
           });
         }
       } catch (err) {
-        logger.error('Failed to setup Freighter listener:', {}, err);
+        console.error('Failed to setup Freighter listener:', err);
       }
     } else if (walletType === 'lobstr') {
       try {
@@ -188,7 +187,7 @@ export function useStellarWallet(
           });
         }
       } catch (err) {
-        logger.error('Failed to setup Lobstr listener:', {}, err);
+        console.error('Failed to setup Lobstr listener:', err);
       }
     }
   }, []);
